@@ -1,10 +1,12 @@
-use crate::{id::Id, view::View, ViewContext};
+use taffy::style::{LengthPercentage, LengthPercentageAuto};
+
+use crate::{id::Id, style::Style, view::View, ViewContext};
 
 use super::{
-    list, scroll, virtual_list, List, VirtualList, VirtualListDirection, VirtualListItemSize,
-    VirtualListVector,
+    list, scroll, virtual_list, Decorators, List, VirtualList, VirtualListDirection,
+    VirtualListItemSize, VirtualListVector,
 };
-use std::hash::Hash;
+use std::{hash::Hash, rc::Rc};
 
 // a tree is a list of items, each of which is a function that returns a tree
 
@@ -33,21 +35,19 @@ Tree {
 //     view_fn: Box<Fn(T) -> V>,
 // }
 
-pub struct ListData<T, I, K, V, PVF, IF, KF, CVF>
+pub struct ListData<T, I, K, IF, KF, CVF>
 where
     T: 'static,
     I: IntoIterator<Item = T> + 'static,
     K: Hash + Eq + 'static,
-    V: View + 'static,
     IF: Fn() -> I + 'static,
     KF: Fn(&T) -> K + 'static,
-    PVF: Fn(T) -> V + 'static,
-    CVF: Fn(T) -> Tree<T, I, K, V, PVF, IF, KF, CVF> + 'static,
+    CVF: Fn(T) -> Box<dyn View> + 'static,
 {
     pub each_fn: Box<IF>,
     pub key_fn: Box<KF>,
     pub view_fn: Box<CVF>,
-    phantom: std::marker::PhantomData<(T, I, K, V, PVF)>,
+    // pub phantom: std::marker::PhantomData<(T, I, K, V, PVF)>,
 }
 
 pub struct TreeProps<T, I, K, V, PVF, IF, KF, CVF>
@@ -59,11 +59,11 @@ where
     IF: Fn() -> I + 'static,
     KF: Fn(&T) -> K + 'static,
     PVF: Fn(T) -> V + 'static,
-    CVF: Fn(T) -> Tree<T, I, K, V, PVF, IF, KF, CVF> + 'static,
+    CVF: Fn(T) -> Box<dyn View> + 'static,
 {
     pub data: T,
-    pub view_fn: Box<PVF>,
-    pub children: Option<ListData<T, I, K, V, PVF, IF, KF, CVF>>,
+    pub parent_view_fn: Rc<Box<PVF>>,
+    pub children: Option<ListData<T, I, K, IF, KF, CVF>>,
 }
 
 pub struct Tree<T, I, K, V, PVF, IF, KF, CVF>
@@ -75,11 +75,12 @@ where
     IF: Fn() -> I + 'static,
     KF: Fn(&T) -> K + 'static,
     PVF: Fn(T) -> V + 'static,
-    CVF: Fn(T) -> Tree<T, I, K, V, PVF, IF, KF, CVF> + 'static,
+    CVF: Fn(T) -> Box<dyn View> + 'static,
 {
     id: Id,
     parent: V,
-    children: Option<List<Tree<T, I, K, V, PVF, IF, KF, CVF>, CVF, T>>, // inner: TreeData<T, I, K, V, PVF, IF, KF, CVF>,
+    children: Option<List<Box<dyn View>, CVF, T>>, // inner: TreeData<T, I, K, V, PVF, IF, KF, CVF>,
+    phantom: std::marker::PhantomData<(T, I, K, V, PVF, IF, KF, CVF)>,
 }
 
 pub fn tree_simple<T, I, K, V, PVF, IF, KF, CVF>(
@@ -93,14 +94,18 @@ where
     IF: Fn() -> I + 'static,
     KF: Fn(&T) -> K + 'static,
     PVF: Fn(T) -> V + 'static,
-    CVF: Fn(T) -> Tree<T, I, K, V, PVF, IF, KF, CVF>,
+    CVF: Fn(T) -> Box<dyn View>,
 {
     let (id, (parent, children)) = ViewContext::new_id_with_child(|| {
         (
-            (props.view_fn)(props.data),
-            props
-                .children
-                .map(|list_data| list(list_data.each_fn, list_data.key_fn, *list_data.view_fn)),
+            (props.parent_view_fn.clone())(props.data),
+            props.children.map(|list_data| {
+                list(list_data.each_fn, list_data.key_fn, *list_data.view_fn).style(|| {
+                    Style::BASE
+                        .flex_direction(crate::style::FlexDirection::Column)
+                        .margin_left(LengthPercentageAuto::Points(20.))
+                })
+            }),
         )
     });
 
@@ -108,6 +113,7 @@ where
         id,
         parent,
         children,
+        phantom: std::marker::PhantomData,
     }
 }
 
@@ -120,7 +126,7 @@ where
     IF: Fn() -> I + 'static,
     KF: Fn(&T) -> K + 'static,
     PVF: Fn(T) -> V + 'static,
-    CVF: Fn(T) -> Tree<T, I, K, V, PVF, IF, KF, CVF>,
+    CVF: Fn(T) -> Box<dyn View> + 'static,
 {
     fn id(&self) -> Id {
         self.id
