@@ -5,8 +5,7 @@ use super::{
 };
 use std::hash::Hash;
 
-// a tree is a list of tree items
-// a tree item can either return a tree or a leaf
+// a tree is a list of items, each of which is a function that returns a tree
 
 // a tree is a a view made up of indented lists
 pub enum TreeData<T, IF, KF, PVF, CVF, L>
