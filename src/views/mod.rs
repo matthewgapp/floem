@@ -25,6 +25,9 @@ pub use decorator::*;
 mod virtual_list;
 pub use virtual_list::*;
 
+mod tree;
+pub use tree::*;
+
 mod scroll;
 pub use scroll::*;
 
