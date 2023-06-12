@@ -9,71 +9,61 @@ use std::hash::Hash;
 // a tree item can either return a tree or a leaf
 
 // a tree is a a view made up of indented lists
-enum TreeData<T, IF, I, K, KF, VF, V, L>
+enum TreeData<T, IF, KF, PVF, CVF, L>
 where
-    T: 'static,
-    IF: Fn() -> I + 'static,
-    I: VirtualListVector<T>,
-    KF: Fn(&T) -> K + 'static,
-    K: Eq + Hash + 'static,
-    VF: Fn(T) -> V + 'static,
-    V: View + 'static,
-    L: View,
+    CVF: Fn(T) -> L + 'static,
 {
-    // TODO: fix generics here
-    Leaf(LeafData<T, VF, L>),
-    Branch(BranchData<T, IF, KF, VF>),
+    Leaf(LeafData<T, CVF>),
+    Parent(ParentData<T, IF, KF, PVF>),
 }
 
-struct LeafData<T, VF, L>
-where
-    T: 'static,
-    VF: Fn(T) -> L + 'static,
-    L: View,
-{
+struct LeafData<T, CVF> {
     item: T,
-    view_fn: Box<VF>,
+    view_fn: Box<CVF>,
 }
 
-struct BranchData<T, IF, KF, VF> {
+struct ParentData<T, IF, KF, PVF> {
+    parent_view_fn: Box<PVF>,
+
     item_size: VirtualListItemSize<T>,
     each_fn: Box<IF>,
     key_fn: Box<KF>,
-    view_fn: Box<VF>,
+    child_view_fn: Box<PVF>,
 }
 
-struct Tree<T, VF, V, L>
+struct Tree<T, CFV, V, L>
 where
     T: 'static,
-    VF: Fn(T) -> V + 'static,
+    CFV: Fn(T) -> V + 'static,
     V: View + 'static,
     L: View,
 {
-    child: TreeChild<T, VF, V, L>,
+    child: TreeChild<T, CFV, V, L>,
 }
 
-enum TreeChild<T, VF, V, L>
+enum TreeChild<T, CVF, V, L>
 where
     T: 'static,
-    VF: Fn(T) -> V + 'static,
+    CVF: Fn(T) -> V + 'static,
     V: View + 'static,
     L: View,
 {
     Leaf(L),
-    Branch(VirtualList<V, VF, T>),
+    Branch(VirtualList<V, CVF, T>),
 }
 
-pub fn tree<T, IF, I, KF, K, VF, V, L>(
-    tree_data: TreeData<T, IF, I, K, KF, VF, V, L>,
-) -> Tree<T, VF, V, L>
+fn tree<T, IF, I, KF, K, PVF, CVF, V, L>(
+    tree_data: TreeData<T, IF, KF, PVF, CVF, L>,
+) -> Tree<T, PVF, V, L>
 where
-    T: 'static,
+    K: Hash + Eq + 'static,
+    I: VirtualListVector<T> + 'static,
     IF: Fn() -> I + 'static,
-    I: VirtualListVector<T>,
     KF: Fn(&T) -> K + 'static,
-    K: Eq + Hash + 'static,
-    VF: Fn(T) -> V + 'static,
-    V: View + 'static,
+    PVF: Fn(T) -> V + 'static,
+    CVF: Fn(T) -> L + 'static,
+    T: 'static,
+    V: View,
     L: View,
 {
     // let cx = ViewContext::get_current();
@@ -81,12 +71,12 @@ where
     // let (long_list, set_long_list) = create_signal(cx.scope, long_list);
     Tree {
         child: match tree_data {
-            TreeData::Branch(branch) => TreeChild::Branch(virtual_list(
+            TreeData::Parent(branch) => TreeChild::Branch(virtual_list(
                 VirtualListDirection::Vertical,
                 VirtualListItemSize::Fixed(Box::new(|| 32.0)),
                 branch.each_fn,
                 branch.key_fn,
-                *branch.view_fn,
+                *branch.child_view_fn,
             )),
             TreeData::Leaf(leaf) => TreeChild::Leaf((leaf.view_fn)(leaf.item)),
         },
