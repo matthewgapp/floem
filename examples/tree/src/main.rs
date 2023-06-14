@@ -43,6 +43,35 @@ fn app_view() -> impl View {
     .style(|| Style::BASE.flex_direction(FlexDirection::Column))
 }
 
+struct NeverIterate<T>(std::marker::PhantomData<T>);
+
+impl<T> IntoIterator for NeverIterate<T> {
+    type IntoIter = std::iter::Empty<T>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::empty()
+    }
+}
+
+fn app_view_with_tree_builder() -> impl View {
+    use floem::views::tree_builder::{tree_view, Children, Node};
+
+    let parent = Node::new(|data| label(move || format!("Parent: {}", data)));
+    let children = Children::new(
+        || (0..10).collect::<Vec<i32>>(),
+        |x| *x,
+        || {
+            Box::new(|x| {
+                let parent_2 = Node::new(|x| label(move || format!("Parent Level 2: {}", x)));
+                tree_view::<_, _, NeverIterate<_>, i32>(x, parent_2, None)
+            })
+        },
+    );
+
+    tree_view(0, parent, Some(children)).style(|| Style::BASE.flex_direction(FlexDirection::Column))
+}
+
 fn main() {
-    floem::launch(app_view);
+    floem::launch(app_view_with_tree_builder);
 }
