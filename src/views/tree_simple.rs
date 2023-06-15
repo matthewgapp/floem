@@ -1,3 +1,4 @@
+use leptos_reactive::SignalGet;
 use taffy::style::{LengthPercentage, LengthPercentageAuto};
 
 use crate::{id::Id, style::Style, view::View, ViewContext};
@@ -191,4 +192,25 @@ where
     ) -> crate::view::ChangeFlags {
         crate::view::ChangeFlags::empty()
     }
+}
+
+// needs a way to tell me to build children
+// need to get a type that is is a closure that returns IntoIter<T> where T: SignalGet
+// need a type that returns a closure that is |value: T|  -> V where V: View, T: SignalGet
+
+pub trait TreeNode<T, V> {
+    type Value: SignalGet<T> + 'static;
+    type Item: TreeNode<Self::Item, V> + 'static;
+    // type I: IntoIterator<Item = Self::Item> + 'static;
+    type Children: SignalGet<Vec<Self::Item>> + 'static;
+    type K: Hash + Eq + 'static;
+    type KeyFn: Fn(&Self::Item) -> Self::K + 'static;
+    // type V: View;
+    type ViewFn: Fn(&Self::Item) -> V + 'static;
+
+    fn node(&self) -> Self::Item;
+    fn has_children(&self) -> bool;
+    fn children(&self) -> Self::Children;
+    fn key(&self) -> Self::KeyFn;
+    fn view_fn(&self) -> Self::ViewFn;
 }

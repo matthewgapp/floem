@@ -11,11 +11,11 @@ use super::{
 
 pub struct Node<T, V> {
     // need to type erase, otherwise every node will be tied to the same concrete closure
-    view_fn: Box<dyn Fn(T) -> V>,
+    view_fn: Box<dyn Fn(&T) -> V>,
 }
 
 impl<T, V> Node<T, V> {
-    pub fn new(view_fn: impl Fn(T) -> V + 'static) -> Self {
+    pub fn new(view_fn: impl Fn(&T) -> V + 'static) -> Self {
         Self {
             view_fn: Box::new(view_fn),
         }
@@ -86,7 +86,7 @@ where
     V: View + 'static,
 {
     let (id, (parent, list)) = ViewContext::new_id_with_child(|| {
-        let parent = (parent.view_fn)(data);
+        let parent = (parent.view_fn)(&data);
 
         let list = children.map(|c| {
             Box::new(list(c.iter_fn, c.key_fn, (c.view_fn)())).style(|| {
