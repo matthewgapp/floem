@@ -1,13 +1,13 @@
-use leptos_reactive::SignalGet;
+use leptos_reactive::{create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked};
 use taffy::style::{LengthPercentage, LengthPercentageAuto};
 
 use crate::{id::Id, style::Style, view::View, ViewContext};
 
 use super::{
-    list, scroll, virtual_list, Decorators, List, VirtualList, VirtualListDirection,
+    list, scroll, virtual_list, Decorators, Label, List, VirtualList, VirtualListDirection,
     VirtualListItemSize, VirtualListVector,
 };
-use std::{hash::Hash, rc::Rc};
+use std::{collections::HashMap, hash::Hash, rc::Rc};
 
 // a tree is a list of items, each of which is a function that returns a tree
 
@@ -198,14 +198,17 @@ where
 // need to get a type that is is a closure that returns IntoIter<T> where T: SignalGet
 // need a type that returns a closure that is |value: T|  -> V where V: View, T: SignalGet
 
-pub trait TreeNode<T, V> {
+pub trait TreeNode<T, V, I>
+where
+    I: IntoIterator + 'static,
+    V: View + 'static,
+    T: 'static,
+{
     type Value: SignalGet<T> + 'static;
-    type Item: TreeNode<Self::Item, V> + 'static;
-    // type I: IntoIterator<Item = Self::Item> + 'static;
-    type Children: SignalGet<Vec<Self::Item>> + 'static;
+    type Item: TreeNode<Self::Item, V, I> + 'static;
+    type Children: SignalGet<I> + 'static;
     type K: Hash + Eq + 'static;
     type KeyFn: Fn(&Self::Item) -> Self::K + 'static;
-    // type V: View;
     type ViewFn: Fn(&Self::Item) -> V + 'static;
 
     fn node(&self) -> Self::Item;
@@ -213,4 +216,140 @@ pub trait TreeNode<T, V> {
     fn children(&self) -> Self::Children;
     fn key(&self) -> Self::KeyFn;
     fn view_fn(&self) -> Self::ViewFn;
+}
+
+impl<N, T, V, I> TreeNode<T, V, I> for Rc<N>
+where
+    N: TreeNode<T, V, I>,
+    I: IntoIterator + 'static,
+    V: View + 'static,
+    T: 'static,
+{
+    type Children = N::Children;
+    type Item = N::Item;
+    type K = N::K;
+    type KeyFn = N::KeyFn;
+    type Value = N::Value;
+    type ViewFn = N::ViewFn;
+
+    fn children(&self) -> Self::Children {
+        self.as_ref().children()
+    }
+
+    fn has_children(&self) -> bool {
+        self.as_ref().has_children()
+    }
+
+    fn key(&self) -> Self::KeyFn {
+        self.as_ref().key()
+    }
+
+    fn node(&self) -> Self::Item {
+        self.as_ref().node()
+    }
+
+    fn view_fn(&self) -> Self::ViewFn {
+        self.as_ref().view_fn()
+    }
+}
+
+// want a data structure that is a tree of signals
+
+#[derive(Clone)]
+struct ReactiveTree<T: 'static> {
+    scope: Scope,
+    root: Id,
+    nodes: RwSignal<HashMap<Id, RwSignal<T>>>,
+    children: RwSignal<HashMap<Id, RwSignal<Vec<Id>>>>,
+}
+
+impl<T> ReactiveTree<T> {
+    fn direct_children(&self) -> &RwSignal<Vec<Id>> {
+        // we should be gucci to unwrap here
+        self.children.get_untracked().get(&self.root).unwrap()
+    }
+
+    fn next_child(&self, child: Id) -> Option<Id> {
+        let direct_children = self.direct_children().get_untracked();
+        let index = direct_children.iter().position(|c| **c == child);
+
+        index.and_then(|i| direct_children.get(i + 1).map(|id| *id))
+    }
+}
+
+#[derive(Clone)]
+struct ReactiveTreeChildIter<T>
+where
+    T: Clone + 'static,
+{
+    tree: ReactiveTree<T>,
+    root: Id,
+    child: Option<Id>,
+}
+
+impl<T> Iterator for ReactiveTreeChildIter<T>
+where
+    T: Clone,
+{
+    type Item = ReactiveTree<T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(child) = self.child {
+            self.tree.next_child(child).map(|next| ReactiveTree {
+                scope: self.tree.scope,
+                root: next,
+                children: self.tree.children,
+                nodes: self.tree.nodes,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T> IntoIterator for ReactiveTree<T>
+where
+    T: Clone,
+{
+    type Item = ReactiveTree<T>;
+    type IntoIter = ReactiveTreeChildIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ReactiveTreeChildIter {
+            tree: self,
+            root: self.root,
+            child: self.direct_children().get_untracked().first().map(|id| *id),
+        }
+    }
+}
+
+impl<T> TreeNode<T, Label, ReactiveTree<T>> for ReactiveTree<T>
+where
+    T: Clone,
+{
+    type Children = RwSignal<ReactiveTree<T>>;
+    type Item = ReactiveTree<ReactiveTree<T>>;
+    type K = Id;
+    type KeyFn = Box<dyn Fn(&Self::Item) -> Self::K>;
+    type ViewFn = Box<dyn Fn(&Self::Item) -> Label>;
+    type Value = RwSignal<T>;
+
+    fn has_children(&self) -> bool {
+        self.direct_children().get_untracked().len() > 0
+    }
+
+    fn children(&self) -> Self::Children {
+        create_rw_signal(self.scope, self.into)
+    }
+
+    fn key(&self) -> Self::KeyFn {
+        Box::new(|item| item.root)
+    }
+
+    fn node(&self) -> Self::Item {
+        self.clone()
+    }
+
+    fn view_fn(&self) -> Self::ViewFn {
+        Box::new(|item| Label::new(format!("Item: {}", item.root)))
+    }
 }

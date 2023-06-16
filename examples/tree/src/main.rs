@@ -9,7 +9,7 @@ use floem::{
     style::{FlexDirection, Style},
     view::View,
     views::{
-        label, stack, tree_builder::TreeView, tree_simple, Decorators, Label, ListData, TreeData,
+        label, tree_builder::TreeView, tree_simple, Decorators, Label, ListData, TreeData,
         TreeNode, TreeProps,
     },
     ViewContext,
@@ -84,11 +84,11 @@ impl MyTreeData {
     }
 }
 
-impl TreeNode<MyTreeData, Label> for MyTreeData {
+impl TreeNode<MyTreeData, Label, Vec<MyTreeData>> for MyTreeData {
     type Value = ReadSignal<MyTreeData>;
+    type Item = MyTreeData;
     type K = i32;
     type KeyFn = Box<dyn Fn(&Self::Item) -> Self::K>;
-    type Item = MyTreeData;
     type Children = ReadSignal<Vec<MyTreeData>>;
     type ViewFn = Box<dyn Fn(&Self::Item) -> Label>;
 
@@ -102,7 +102,7 @@ impl TreeNode<MyTreeData, Label> for MyTreeData {
 
     fn view_fn(&self) -> Self::ViewFn {
         Box::new(|x: &MyTreeData| {
-            let x = x.clone();
+            let x = *x;
             floem::views::label(move || x.data.get().to_string())
         })
     }
@@ -112,16 +112,19 @@ impl TreeNode<MyTreeData, Label> for MyTreeData {
     }
 
     fn node(&self) -> Self::Item {
-        self.clone()
+        MyTreeData {
+            data: self.data,
+            children: self.children,
+        }
     }
-    // type Item = TreeNode<;
-    // type I = ;
 }
 
-fn build_tree<T, V, S>(tree_node: S) -> TreeView<S::Item, V>
+fn build_tree<T, V, S, I>(tree_node: S) -> TreeView<S::Item, V>
 where
-    S: TreeNode<T, V, Item = S> + 'static + Copy,
+    S: TreeNode<T, V, I, Item = S> + Copy + 'static,
     V: View + 'static,
+    I: IntoIterator<Item = S> + 'static,
+    T: 'static,
 {
     use floem::views::tree_builder::{tree_view, Children, Node};
 

@@ -2,11 +2,11 @@ use std::time::Duration;
 use std::{any::Any, collections::HashMap};
 
 use crate::animate::AnimValue;
-use crate::view::{view_debug_tree, view_tab_navigation};
+use crate::view::view_tab_navigation;
 use floem_renderer::Renderer;
 use glazier::kurbo::{Affine, Point, Rect, Vec2};
 use glazier::{FileDialogOptions, FileDialogToken, FileInfo, Scale, TimerToken, WinHandler};
-use leptos_reactive::Scope;
+use leptos_reactive::{RwSignal, Scope};
 
 use crate::menu::Menu;
 use crate::{
@@ -794,6 +794,13 @@ impl<V: View> AppHandle<V> {
         }
         self.process_update();
     }
+
+    fn build_debug_data(&self) {
+        let cx = ViewContext::get_current();
+        let scope = cx.scope;
+
+        // let node = self.view;
+    }
 }
 
 impl<V: View> WinHandler for AppHandle<V> {
@@ -906,4 +913,12 @@ impl<V: View> WinHandler for AppHandle<V> {
         self.event(Event::WindowClosed);
         glazier::Application::global().quit();
     }
+}
+
+// impl TreeNode for
+
+trait Tree<T> {
+    fn insert_root(&mut self, id: Id, data: T);
+    fn insert_child(&mut self, id: Id, data: T);
+    fn remove_child(&mut self, id: Id);
 }

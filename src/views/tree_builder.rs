@@ -29,7 +29,7 @@ where
 {
     iter_fn: Box<dyn Fn() -> I>,
     key_fn: Box<dyn Fn(&T) -> K>,
-    view_fn: Box<dyn Fn() -> Box<dyn Fn(T) -> TreeView<T, V>>>,
+    make_view_fn: Box<dyn Fn() -> Box<dyn Fn(T) -> TreeView<T, V>>>,
 }
 
 impl<T, V, I, K> Children<T, V, I, K>
@@ -39,12 +39,12 @@ where
     pub fn new(
         iter_fn: impl Fn() -> I + 'static,
         key_fn: impl Fn(&T) -> K + 'static,
-        view_fn: impl Fn() -> Box<dyn Fn(T) -> TreeView<T, V>> + 'static,
+        make_view_fn: impl Fn() -> Box<dyn Fn(T) -> TreeView<T, V>> + 'static,
     ) -> Self {
         Self {
             iter_fn: Box::new(iter_fn),
             key_fn: Box::new(key_fn),
-            view_fn: Box::new(view_fn),
+            make_view_fn: Box::new(make_view_fn),
         }
     }
 }
@@ -75,7 +75,7 @@ where
 }
 
 pub fn tree_view<T, V, I, K>(
-    data: T,
+    value: T,
     parent: Node<T, V>,
     children: Option<Children<T, V, I, K>>,
 ) -> TreeView<T, V>
@@ -86,10 +86,10 @@ where
     V: View + 'static,
 {
     let (id, (parent, list)) = ViewContext::new_id_with_child(|| {
-        let parent = (parent.view_fn)(&data);
+        let parent = (parent.view_fn)(&value);
 
         let list = children.map(|c| {
-            Box::new(list(c.iter_fn, c.key_fn, (c.view_fn)())).style(|| {
+            Box::new(list(c.iter_fn, c.key_fn, (c.make_view_fn)())).style(|| {
                 Style::BASE
                     .flex_direction(crate::style::FlexDirection::Column)
                     .margin_left(LengthPercentageAuto::Points(20.))
