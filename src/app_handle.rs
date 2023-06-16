@@ -1,12 +1,16 @@
+use std::collections::VecDeque;
+use std::default;
+use std::marker::PhantomData;
 use std::time::Duration;
 use std::{any::Any, collections::HashMap};
 
 use crate::animate::AnimValue;
 use crate::view::view_tab_navigation;
+use crate::views::{ReactiveTree, TreeNode};
 use floem_renderer::Renderer;
 use glazier::kurbo::{Affine, Point, Rect, Vec2};
 use glazier::{FileDialogOptions, FileDialogToken, FileInfo, Scale, TimerToken, WinHandler};
-use leptos_reactive::{RwSignal, Scope};
+use leptos_reactive::{create_rw_signal, RwSignal, Scope};
 
 use crate::menu::Menu;
 use crate::{
@@ -197,7 +201,7 @@ pub enum UpdateMessage {
 /// - processing all requests to update the AppState from the reactive system
 /// - processing all requests to update the animation state from the reactive system
 /// - requesting a new animation frame from the backend
-pub struct AppHandle<V: View> {
+pub struct AppHandle<V: View, D: 'static> {
     scope: Scope,
     view: V,
     handle: glazier::WindowHandle,
@@ -205,16 +209,28 @@ pub struct AppHandle<V: View> {
     paint_state: PaintState,
 
     file_dialogs: FileDialogs,
+    debug_state: Option<RwSignal<D>>,
 }
 
-impl<V: View> Drop for AppHandle<V> {
+impl<V: View, D> Drop for AppHandle<V, D> {
     fn drop(&mut self) {
         self.scope.dispose();
     }
 }
 
-impl<V: View> AppHandle<V> {
-    pub fn new(scope: Scope, app_logic: impl FnOnce() -> V) -> Self {
+impl<V: View> AppHandle<V, ReactiveTree<()>> {
+    pub fn init_debug_state(&mut self) -> RwSignal<ReactiveTree<()>> {
+        let debug_state = create_rw_signal(self.scope, Self::build_debug_data(&mut self.view));
+        self.debug_state = Some(debug_state);
+        debug_state
+    }
+}
+
+impl<V: View, D> AppHandle<V, D> {
+    pub fn new(scope: Scope, app_logic: impl FnOnce() -> V) -> Self
+    where
+        D: 'static,
+    {
         let cx = ViewContext {
             scope,
             id: Id::next(),
@@ -222,7 +238,8 @@ impl<V: View> AppHandle<V> {
 
         ViewContext::set_current(cx);
 
-        let view = app_logic();
+        let mut view = app_logic();
+
         Self {
             scope,
             view,
@@ -230,6 +247,7 @@ impl<V: View> AppHandle<V> {
             paint_state: PaintState::new(),
             handle: Default::default(),
             file_dialogs: HashMap::new(),
+            debug_state: None,
         }
     }
 
@@ -795,15 +813,27 @@ impl<V: View> AppHandle<V> {
         self.process_update();
     }
 
-    fn build_debug_data(&self) {
+    fn build_debug_data(view: &mut impl View) -> ReactiveTree<()> {
         let cx = ViewContext::get_current();
         let scope = cx.scope;
 
-        // let node = self.view;
+        let tree = ReactiveTree::<()>::new(scope, view.id(), ());
+
+        let mut nodes = VecDeque::new();
+        nodes.push_back(view as &mut dyn View);
+        while let Some(cur) = nodes.pop_front() {
+            let id = cur.id();
+            for child in cur.children() {
+                tree.insert_child(id, child.id(), ());
+                nodes.push_back(child);
+            }
+        }
+
+        tree
     }
 }
 
-impl<V: View> WinHandler for AppHandle<V> {
+impl<V: View, D> WinHandler for AppHandle<V, D> {
     fn connect(&mut self, handle: &glazier::WindowHandle) {
         self.app_state.handle = handle.clone();
         self.paint_state.connect(handle);

@@ -49,17 +49,6 @@ fn app_view() -> impl View {
     .style(|| Style::BASE.flex_direction(FlexDirection::Column))
 }
 
-struct NeverIterate<T>(std::marker::PhantomData<T>);
-
-impl<T> IntoIterator for NeverIterate<T> {
-    type IntoIter = std::iter::Empty<T>;
-    type Item = T;
-
-    fn into_iter(self) -> Self::IntoIter {
-        std::iter::empty()
-    }
-}
-
 #[derive(Clone, Copy)]
 struct MyTreeData {
     data: RwSignal<i32>,
@@ -85,7 +74,6 @@ impl MyTreeData {
 }
 
 impl TreeNode<MyTreeData, Label, Vec<MyTreeData>> for MyTreeData {
-    type Value = ReadSignal<MyTreeData>;
     type Item = MyTreeData;
     type K = i32;
     type KeyFn = Box<dyn Fn(&Self::Item) -> Self::K>;

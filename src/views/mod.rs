@@ -54,3 +54,5 @@ pub use empty::*;
 
 mod window_drag_area;
 pub use window_drag_area::*;
+
+pub(crate) mod debug_view;

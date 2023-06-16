@@ -1,11 +1,15 @@
-use leptos_reactive::{create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked};
-use taffy::style::{LengthPercentage, LengthPercentageAuto};
+use leptos_reactive::{
+    create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalUpdate,
+};
+use taffy::style::{FlexDirection, LengthPercentage, LengthPercentageAuto};
 
 use crate::{id::Id, style::Style, view::View, ViewContext};
 
 use super::{
-    list, scroll, virtual_list, Decorators, Label, List, VirtualList, VirtualListDirection,
-    VirtualListItemSize, VirtualListVector,
+    label, list, scroll,
+    tree_builder::{tree_view, Children, Node, TreeView},
+    virtual_list, Decorators, Label, List, VirtualList, VirtualListDirection, VirtualListItemSize,
+    VirtualListVector,
 };
 use std::{collections::HashMap, hash::Hash, rc::Rc};
 
@@ -204,7 +208,6 @@ where
     V: View + 'static,
     T: 'static,
 {
-    type Value: SignalGet<T> + 'static;
     type Item: TreeNode<Self::Item, V, I> + 'static;
     type Children: SignalGet<I> + 'static;
     type K: Hash + Eq + 'static;
@@ -229,7 +232,6 @@ where
     type Item = N::Item;
     type K = N::K;
     type KeyFn = N::KeyFn;
-    type Value = N::Value;
     type ViewFn = N::ViewFn;
 
     fn children(&self) -> Self::Children {
@@ -256,7 +258,7 @@ where
 // want a data structure that is a tree of signals
 
 #[derive(Clone)]
-struct ReactiveTree<T: 'static> {
+pub struct ReactiveTree<T: 'static> {
     scope: Scope,
     root: Id,
     nodes: RwSignal<HashMap<Id, RwSignal<T>>>,
@@ -264,27 +266,50 @@ struct ReactiveTree<T: 'static> {
 }
 
 impl<T> ReactiveTree<T> {
-    fn direct_children(&self) -> &RwSignal<Vec<Id>> {
+    pub fn new(scope: Scope, root: Id, data: T) -> Self {
+        let nodes = HashMap::new();
+        Self {
+            scope,
+            root,
+            nodes: create_rw_signal(scope, nodes),
+            children: create_rw_signal(scope, HashMap::new()),
+        }
+    }
+
+    pub fn insert_child(&self, parent: Id, child: Id, data: T) {
+        let mut children = self.children.get_untracked();
+
+        if let Some(parent_children) = children.get_mut(&parent) {
+            parent_children.update(|parent_children| parent_children.push(child));
+        } else {
+            children.insert(parent, create_rw_signal(self.scope, vec![child]));
+        };
+
+        self.nodes.update(|nodes| {
+            nodes.insert(child, create_rw_signal(self.scope, data));
+        });
+    }
+
+    fn direct_children(&self) -> RwSignal<Vec<Id>> {
         // we should be gucci to unwrap here
-        self.children.get_untracked().get(&self.root).unwrap()
+        *self.children.get_untracked().get(&self.root).unwrap()
     }
 
     fn next_child(&self, child: Id) -> Option<Id> {
         let direct_children = self.direct_children().get_untracked();
-        let index = direct_children.iter().position(|c| **c == child);
+        let index = direct_children.iter().position(|c| *c == child);
 
         index.and_then(|i| direct_children.get(i + 1).map(|id| *id))
     }
 }
 
 #[derive(Clone)]
-struct ReactiveTreeChildIter<T>
+pub struct ReactiveTreeChildIter<T>
 where
     T: Clone + 'static,
 {
     tree: ReactiveTree<T>,
-    root: Id,
-    child: Option<Id>,
+    cur: Option<Id>,
 }
 
 impl<T> Iterator for ReactiveTreeChildIter<T>
@@ -293,10 +318,11 @@ where
 {
     type Item = ReactiveTree<T>;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(child) = self.child {
-            self.tree.next_child(child).map(|next| ReactiveTree {
+        if let Some(cur) = self.cur {
+            self.cur = self.tree.next_child(cur);
+            Some(ReactiveTree {
                 scope: self.tree.scope,
-                root: next,
+                root: cur,
                 children: self.tree.children,
                 nodes: self.tree.nodes,
             })
@@ -315,41 +341,131 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         ReactiveTreeChildIter {
-            tree: self,
-            root: self.root,
-            child: self.direct_children().get_untracked().first().map(|id| *id),
+            tree: self.clone(),
+            cur: self.direct_children().get_untracked().first().map(|id| *id),
         }
     }
 }
 
-impl<T> TreeNode<T, Label, ReactiveTree<T>> for ReactiveTree<T>
+// impl<T> TreeNode<T, Label, ReactiveTree<T>> for ReactiveTree<T>
+// where
+//     T: Clone,
+// {
+//     type Children = RwSignal<ReactiveTree<T>>;
+//     type Item = ReactiveTree<ReactiveTree<T>>;
+//     type K = Id;
+//     type KeyFn = Box<dyn Fn(&Self::Item) -> Self::K>;
+//     type ViewFn = Box<dyn Fn(&Self::Item) -> Label>;
+//     type Value = RwSignal<T>;
+
+//     fn has_children(&self) -> bool {
+//         self.direct_children().get_untracked().len() > 0
+//     }
+
+//     fn children(&self) -> Self::Children {
+//         create_rw_signal(self.scope, self.into)
+//     }
+
+//     fn key(&self) -> Self::KeyFn {
+//         Box::new(|item| item.root)
+//     }
+
+//     fn node(&self) -> Self::Item {
+//         self.clone()
+//     }
+
+//     fn view_fn(&self) -> Self::ViewFn {
+//         Box::new(|item| Label::new(format!("Item: {}", item.root)))
+//     }
+// }
+
+// needs a way to tell me to build children
+// need to get a type that is is a closure that returns IntoIter<T> where T: SignalGet
+// need a type that returns a closure that is |value: T|  -> V where V: View, T: SignalGet
+
+// i need a method to get something that can be turned into an iterator of children (wrapped in a signal). This iterator should return the same type as the node
+// i need a method that can can return a closure
+// i need a method that can return the current node
+
+trait SuperFuckingBasicTreeNode {
+    type View: View;
+    type I: IntoIterator<Item = Self>;
+    type Children: SignalGet<Self::I>;
+    type K: Hash + Eq + 'static;
+    type KeyFn: Fn(&Self) -> Self::K + 'static;
+    type ViewFn: Fn(&Self) -> Self::View;
+
+    fn has_children(&self) -> bool;
+    fn children(&self) -> Self::Children;
+    fn key_fn(&self) -> Self::KeyFn;
+    fn view_fn(&self) -> Self::ViewFn;
+}
+
+impl<T> SuperFuckingBasicTreeNode for ReactiveTree<T>
 where
     T: Clone,
 {
-    type Children = RwSignal<ReactiveTree<T>>;
-    type Item = ReactiveTree<ReactiveTree<T>>;
+    type View = Label;
+    type Children = ReadSignal<Self::I>;
+    type I = ReactiveTree<T>;
     type K = Id;
-    type KeyFn = Box<dyn Fn(&Self::Item) -> Self::K>;
-    type ViewFn = Box<dyn Fn(&Self::Item) -> Label>;
-    type Value = RwSignal<T>;
+    type KeyFn = Box<dyn Fn(&Self) -> Id>;
+    type ViewFn = Box<dyn Fn(&Self) -> Label>;
 
     fn has_children(&self) -> bool {
         self.direct_children().get_untracked().len() > 0
     }
 
     fn children(&self) -> Self::Children {
-        create_rw_signal(self.scope, self.into)
+        create_rw_signal(self.scope, self.clone()).read_only()
     }
 
-    fn key(&self) -> Self::KeyFn {
-        Box::new(|item| item.root)
-    }
-
-    fn node(&self) -> Self::Item {
-        self.clone()
+    fn key_fn(&self) -> Self::KeyFn {
+        Box::new(|node| node.root)
     }
 
     fn view_fn(&self) -> Self::ViewFn {
-        Box::new(|item| Label::new(format!("Item: {}", item.root)))
+        Box::new(|node| {
+            let root_id = node.root;
+            label(move || format!("Node with id {:?}", root_id))
+        })
     }
+}
+
+pub struct NeverIterate<T>(std::marker::PhantomData<T>);
+
+impl<T> IntoIterator for NeverIterate<T> {
+    type IntoIter = std::iter::Empty<T>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::empty()
+    }
+}
+
+fn build_fucking_simple_tree<T, V, S, I>(tree_node: S) -> TreeView<S::Item, V>
+where
+    S: TreeNode<T, V, I, Item = S> + Copy + 'static,
+    V: View + 'static,
+    I: IntoIterator<Item = S> + 'static,
+    T: 'static,
+{
+    let parent = Node::new(tree_node.view_fn());
+    let children = Children::new(
+        move || tree_node.children().get(),
+        tree_node.key(),
+        move || {
+            Box::new(move |x| {
+                if tree_node.has_children() {
+                    build_fucking_simple_tree(x)
+                } else {
+                    let parent = Node::new(tree_node.view_fn());
+                    tree_view::<_, _, NeverIterate<_>, S::K>(x, parent, None)
+                }
+            })
+        },
+    );
+
+    tree_view(tree_node.node(), parent, Some(children))
+        .style(|| Style::BASE.flex_direction(FlexDirection::Column))
 }

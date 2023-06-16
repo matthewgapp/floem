@@ -1,7 +1,7 @@
 use glazier::{kurbo::Size, WindowBuilder};
 use leptos_reactive::{create_runtime, raw_scope_and_disposer, Scope};
 
-use crate::{app_handle::AppHandle, view::View, window::WindowConfig};
+use crate::{app_handle::AppHandle, view::View, views::ReactiveTree, window::WindowConfig};
 
 type AppEventCallback = dyn Fn(&AppEvent);
 
@@ -66,7 +66,6 @@ impl Application {
     ) -> Self {
         let application = self.application.clone();
         let _ = self.scope.child_scope(move |cx| {
-            let app = AppHandle::new(cx, app_view);
             let mut builder = WindowBuilder::new(application).size(
                 config
                     .as_ref()
@@ -80,9 +79,21 @@ impl Application {
                 builder = builder.show_titlebar(show_titlebar);
             }
 
-            builder = builder.handler(Box::new(app));
-            let window = builder.build().unwrap();
-            window.show();
+            let is_debug = config.as_ref().map(|c| c.debug).unwrap_or(false);
+
+            if is_debug {
+                let mut app = AppHandle::<_, ReactiveTree<()>>::new(cx, app_view);
+                let debug_state = app.init_debug_state();
+                // app.
+                let builder = builder.handler(Box::new(app));
+                let window = builder.build().unwrap();
+                window.show();
+            } else {
+                let app = AppHandle::<_, ()>::new(cx, app_view);
+                let builder = builder.handler(Box::new(app));
+                let window = builder.build().unwrap();
+                window.show();
+            }
         });
         self
     }
