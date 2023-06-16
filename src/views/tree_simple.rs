@@ -257,7 +257,7 @@ where
 
 // want a data structure that is a tree of signals
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ReactiveTree<T: 'static> {
     scope: Scope,
     root: Id,
@@ -277,13 +277,13 @@ impl<T> ReactiveTree<T> {
     }
 
     pub fn insert_child(&self, parent: Id, child: Id, data: T) {
-        let mut children = self.children.get_untracked();
-
-        if let Some(parent_children) = children.get_mut(&parent) {
-            parent_children.update(|parent_children| parent_children.push(child));
-        } else {
-            children.insert(parent, create_rw_signal(self.scope, vec![child]));
-        };
+        self.children.update(|children| {
+            if let Some(parent_children) = children.get_mut(&parent) {
+                parent_children.update(|parent_children| parent_children.push(child));
+            } else {
+                children.insert(parent, create_rw_signal(self.scope, vec![child]));
+            };
+        });
 
         self.nodes.update(|nodes| {
             nodes.insert(child, create_rw_signal(self.scope, data));
@@ -292,7 +292,11 @@ impl<T> ReactiveTree<T> {
 
     fn direct_children(&self) -> RwSignal<Vec<Id>> {
         // we should be gucci to unwrap here
-        *self.children.get_untracked().get(&self.root).unwrap()
+        *self
+            .children
+            .get_untracked()
+            .get(&self.root)
+            .unwrap_or(&create_rw_signal(self.scope, vec![]))
     }
 
     fn next_child(&self, child: Id) -> Option<Id> {
@@ -387,13 +391,14 @@ where
 // i need a method that can can return a closure
 // i need a method that can return the current node
 
-trait SuperFuckingBasicTreeNode {
+pub trait SuperFuckingBasicTreeNode: Copy {
     type View: View;
-    type I: IntoIterator<Item = Self>;
+    type Item: SuperFuckingBasicTreeNode;
+    type I: IntoIterator<Item = Self::Item>;
     type Children: SignalGet<Self::I>;
     type K: Hash + Eq + 'static;
-    type KeyFn: Fn(&Self) -> Self::K + 'static;
-    type ViewFn: Fn(&Self) -> Self::View;
+    type KeyFn: Fn(&Self::Item) -> Self::K + 'static;
+    type ViewFn: Fn(&Self::Item) -> Self::View;
 
     fn has_children(&self) -> bool;
     fn children(&self) -> Self::Children;
@@ -403,8 +408,9 @@ trait SuperFuckingBasicTreeNode {
 
 impl<T> SuperFuckingBasicTreeNode for ReactiveTree<T>
 where
-    T: Clone,
+    T: Clone + Copy,
 {
+    type Item = Self;
     type View = Label;
     type Children = ReadSignal<Self::I>;
     type I = ReactiveTree<T>;
@@ -432,6 +438,35 @@ where
     }
 }
 
+// impl<T> SuperFuckingBasicTreeNode for Rc<T>
+// where
+//     T: SuperFuckingBasicTreeNode<Item = T>,
+// {
+//     type Item = T;
+//     type I = T::I;
+//     type Children = T::Children;
+//     type K = T::K;
+//     type View = T::View;
+//     type ViewFn = T::ViewFn;
+//     type KeyFn = T::KeyFn;
+
+//     fn children(&self) -> Self::Children {
+//         self.children()
+//     }
+
+//     fn key_fn(&self) -> Self::KeyFn {
+//         self.key_fn()
+//     }
+
+//     fn has_children(&self) -> bool {
+//         self.has_children()
+//     }
+
+//     fn view_fn(&self) -> Self::ViewFn {
+//         self.view_fn()
+//     }
+// }
+
 pub struct NeverIterate<T>(std::marker::PhantomData<T>);
 
 impl<T> IntoIterator for NeverIterate<T> {
@@ -443,17 +478,14 @@ impl<T> IntoIterator for NeverIterate<T> {
     }
 }
 
-fn build_fucking_simple_tree<T, V, S, I>(tree_node: S) -> TreeView<S::Item, V>
+pub fn build_fucking_simple_tree<S>(tree_node: S) -> TreeView<S, S::View>
 where
-    S: TreeNode<T, V, I, Item = S> + Copy + 'static,
-    V: View + 'static,
-    I: IntoIterator<Item = S> + 'static,
-    T: 'static,
+    S: SuperFuckingBasicTreeNode<Item = S>,
 {
     let parent = Node::new(tree_node.view_fn());
     let children = Children::new(
         move || tree_node.children().get(),
-        tree_node.key(),
+        tree_node.key_fn(),
         move || {
             Box::new(move |x| {
                 if tree_node.has_children() {
@@ -466,6 +498,6 @@ where
         },
     );
 
-    tree_view(tree_node.node(), parent, Some(children))
+    tree_view(tree_node, parent, Some(children))
         .style(|| Style::BASE.flex_direction(FlexDirection::Column))
 }

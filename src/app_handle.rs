@@ -209,7 +209,8 @@ pub struct AppHandle<V: View, D: 'static> {
     paint_state: PaintState,
 
     file_dialogs: FileDialogs,
-    debug_state: Option<RwSignal<D>>,
+    debug_state: Option<std::rc::Rc<ReactiveTree<()>>>,
+    phantom: std::marker::PhantomData<D>,
 }
 
 impl<V: View, D> Drop for AppHandle<V, D> {
@@ -219,14 +220,14 @@ impl<V: View, D> Drop for AppHandle<V, D> {
 }
 
 impl<V: View> AppHandle<V, ReactiveTree<()>> {
-    pub fn init_debug_state(&mut self) -> RwSignal<ReactiveTree<()>> {
-        let debug_state = create_rw_signal(self.scope, Self::build_debug_data(&mut self.view));
-        self.debug_state = Some(debug_state);
+    pub fn init_debug_state(&mut self) -> std::rc::Rc<ReactiveTree<()>> {
+        let debug_state = std::rc::Rc::new(Self::build_debug_data(&mut self.view));
+        self.debug_state = Some(debug_state.clone());
         debug_state
     }
 }
 
-impl<V: View, D> AppHandle<V, D> {
+impl<V: View, D: 'static> AppHandle<V, D> {
     pub fn new(scope: Scope, app_logic: impl FnOnce() -> V) -> Self
     where
         D: 'static,
@@ -238,7 +239,7 @@ impl<V: View, D> AppHandle<V, D> {
 
         ViewContext::set_current(cx);
 
-        let mut view = app_logic();
+        let view = app_logic();
 
         Self {
             scope,
@@ -248,6 +249,7 @@ impl<V: View, D> AppHandle<V, D> {
             handle: Default::default(),
             file_dialogs: HashMap::new(),
             debug_state: None,
+            phantom: Default::default(),
         }
     }
 
@@ -270,6 +272,8 @@ impl<V: View, D> AppHandle<V, D> {
                 id.request_layout();
             });
         }
+
+        self.update_tree();
     }
 
     pub fn paint(&mut self) {
@@ -813,23 +817,31 @@ impl<V: View, D> AppHandle<V, D> {
         self.process_update();
     }
 
-    fn build_debug_data(view: &mut impl View) -> ReactiveTree<()> {
-        let cx = ViewContext::get_current();
-        let scope = cx.scope;
-
-        let tree = ReactiveTree::<()>::new(scope, view.id(), ());
-
+    fn add_nodes_to_tree(tree: &ReactiveTree<()>, view: &mut impl View) {
         let mut nodes = VecDeque::new();
         nodes.push_back(view as &mut dyn View);
         while let Some(cur) = nodes.pop_front() {
             let id = cur.id();
+            println!("inserting children for {:?}", id);
             for child in cur.children() {
                 tree.insert_child(id, child.id(), ());
                 nodes.push_back(child);
             }
         }
+    }
 
+    fn build_debug_data(view: &mut impl View) -> ReactiveTree<()> {
+        let cx = ViewContext::get_current();
+        let scope = cx.scope;
+        let tree = ReactiveTree::<()>::new(scope, view.id(), ());
+        Self::add_nodes_to_tree(&tree, view);
         tree
+    }
+
+    fn update_tree(&mut self) {
+        if let Some(ref tree) = self.debug_state {
+            Self::add_nodes_to_tree(&tree, &mut self.view);
+        }
     }
 }
 
