@@ -229,39 +229,39 @@ where
     fn view_fn(&self) -> Self::ViewFn;
 }
 
-impl<N, T, V, I> TreeNode<T, V, I> for Rc<N>
-where
-    N: TreeNode<T, V, I>,
-    I: IntoIterator + 'static,
-    V: View + 'static,
-    T: 'static,
-{
-    type Children = N::Children;
-    type Item = N::Item;
-    type K = N::K;
-    type KeyFn = N::KeyFn;
-    type ViewFn = N::ViewFn;
+// impl<N, T, V, I> TreeNode<T, V, I> for Rc<N>
+// where
+//     N: TreeNode<T, V, I>,
+//     I: IntoIterator + 'static,
+//     V: View + 'static,
+//     T: 'static,
+// {
+//     type Children = N::Children;
+//     type Item = N::Item;
+//     type K = N::K;
+//     type KeyFn = N::KeyFn;
+//     type ViewFn = N::ViewFn;
 
-    fn children(&self) -> Self::Children {
-        self.as_ref().children()
-    }
+//     fn children(&self) -> Self::Children {
+//         self.as_ref().children()
+//     }
 
-    fn has_children(&self) -> bool {
-        self.as_ref().has_children()
-    }
+//     fn has_children(&self) -> bool {
+//         self.as_ref().has_children()
+//     }
 
-    fn key(&self) -> Self::KeyFn {
-        self.as_ref().key()
-    }
+//     fn key(&self) -> Self::KeyFn {
+//         self.as_ref().key()
+//     }
 
-    fn node(&self) -> Self::Item {
-        self.as_ref().node()
-    }
+//     fn node(&self) -> Self::Item {
+//         self.as_ref().node()
+//     }
 
-    fn view_fn(&self) -> Self::ViewFn {
-        self.as_ref().view_fn()
-    }
-}
+//     fn view_fn(&self) -> Self::ViewFn {
+//         self.as_ref().view_fn()
+//     }
+// }
 
 // want a data structure that is a tree of signals
 
@@ -281,7 +281,8 @@ where
     T: Debug,
 {
     pub fn new(scope: Scope, root: Id, data: T) -> Self {
-        let nodes = HashMap::new();
+        let mut nodes = HashMap::new();
+        nodes.insert(root, create_rw_signal(scope, data));
         Self {
             scope,
             root,
@@ -303,10 +304,13 @@ where
             nodes.insert(child, create_rw_signal(self.scope, data));
         });
 
-        self.nodes.get_untracked().get(&parent).map(|parent_node| {
-            // notify parent that it has changed
-            parent_node.update(|_| {});
-        });
+        self.nodes
+            .get_untracked()
+            .get(&parent)
+            .unwrap()
+            .update(|x| {
+                // notify the parent;
+            })
     }
 
     fn root_children(&self) -> RwSignal<Vec<Id>> {

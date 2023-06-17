@@ -835,7 +835,7 @@ impl<V: View, D: 'static> AppHandle<V, D> {
         let scope = cx.scope;
         let tree = ReactiveTree::<()>::new(scope, view.id(), ());
         Self::add_nodes_to_tree(&tree, view);
-        println!("initial debug tree: {:?}", tree);
+        println!("initial debug tree: {:#?}", tree);
         tree
     }
 
