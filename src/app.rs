@@ -98,7 +98,7 @@ impl Application {
                 let debug_state = app.init_debug_state();
                 let debug_window = debug_window
                     .handler(Box::new(AppHandle::<_, ()>::new(cx, || {
-                        debug_view(debug_state.as_ref().clone())
+                        debug_view(debug_state.as_ref().root_tree_node().get_untracked())
                     })))
                     .build()
                     .unwrap();
