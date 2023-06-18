@@ -291,14 +291,37 @@ where
         }
     }
 
+    pub fn has_untracked(&self, node: &Id) -> bool {
+        self.nodes.get_untracked().get(node).is_some()
+    }
+
+    // TODO: fix up this function so that it's not dogshit
     pub fn insert_child(&self, parent: Id, child: Id, data: T) {
-        self.children.update(|children| {
-            if let Some(parent_children) = children.get_mut(&parent) {
+        println!("inserting child {:?}", child);
+
+        let children = self.children.get_untracked();
+        if let Some(parent_children) = children.get(&parent) {
+            if parent_children
+                .get_untracked()
+                .iter()
+                .find(|x| **x == child)
+                .is_none()
+            {
                 parent_children.update(|parent_children| parent_children.push(child));
-            } else {
+            }
+        } else {
+            self.children.update(|children| {
                 children.insert(parent, create_rw_signal(self.scope, vec![child]));
-            };
-        });
+            });
+        }
+
+        if self.nodes.get_untracked().get(&child).is_some() {
+            println!("returning early with child {:?}", child);
+            if self.nodes.get_untracked().get(&parent).is_none() {
+                panic!("child set but parent wasn't");
+            }
+            return;
+        }
 
         self.nodes.update(|nodes| {
             nodes.insert(child, create_rw_signal(self.scope, data));
@@ -326,17 +349,25 @@ where
         self.children.get_untracked().get(id).copied()
     }
 
-    fn next_child_untracked(&self, parent: &Id, child: &Id) -> Option<Id> {
+    fn next_child_untracked(&self, parent: &Id, child: &Id) -> Option<Id>
+    where
+        T: Clone + Copy,
+    {
         if let Some(children) = self.children_untracked(parent) {
             let children = children.get_untracked();
             let index = children.iter().position(|c| c == child);
-            index.and_then(|i| children.get(i + 1).map(|id| *id))
+            let id = index.and_then(|i| children.get(i + 1).map(|id| *id));
+            id.as_ref().map(|id| self.tree_node(id).unwrap());
+            id
         } else {
             None
         }
     }
 
-    fn next_child_from_root_untracked(&self, child: &Id) -> Option<Id> {
+    fn next_child_from_root_untracked(&self, child: &Id) -> Option<Id>
+    where
+        T: Clone + Copy,
+    {
         self.next_child_untracked(&self.root, child)
     }
 
@@ -361,7 +392,7 @@ where
             Some(Signal::derive(self.scope, move || ConcreteTreeNode {
                 scope,
                 tree,
-                id: id,
+                id,
                 value: Signal::derive(scope, move || {
                     // get untracked here because we don't want to respond to general changes in nodes when we build this signal
                     nodes.get_untracked().get(&id).unwrap().get()
@@ -402,7 +433,11 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(cur) = self.cur {
             let next = self.tree.next_child_untracked(&self.parent, &cur);
+            println!("unwrapping tree node {:?}", cur);
+            println!("current tree {:#?}", self.tree.nodes.get_untracked());
             let item = self.tree.tree_node(&cur).unwrap();
+            println!("current item: {:?}", item.get_untracked().id);
+            println!("next item: {:?}", next);
             self.cur = next;
             Some(item)
         } else {
@@ -475,6 +510,7 @@ where
             .tree
             .children_untracked(&self.id)
             .and_then(|children| children.get_untracked().first().map(|id| *id));
+        println!("created iter with {:?}", first_child);
         TreeNodeIter {
             cur: first_child,
             parent: self.id,
@@ -560,28 +596,33 @@ impl<T> IntoIterator for NeverIterate<T> {
     }
 }
 
-pub fn build_fucking_simple_tree<S, N>(tree_node: S) -> TreeView<N, S::View>
+pub fn build_fucking_simple_tree<S, N, K>(tree_node: S) -> TreeView<N, S::View>
 where
-    S: SuperFuckingBasicTreeNode<Item = N> + 'static,
+    S: SuperFuckingBasicTreeNode<Item = N, K = K> + 'static,
     N: SignalGet<S>,
+    K: Debug + Hash + Eq + 'static,
 {
+    println!("build simple tree");
     let parent = Node::<N, _>::new(tree_node.view_fn());
-    let children = Children::new(
-        move || tree_node.children().get(),
-        tree_node.key_fn(),
-        move || {
-            Box::new(move |item| {
-                if tree_node.has_children() {
-                    let node = item.get();
-                    build_fucking_simple_tree(node)
-                } else {
-                    let parent = Node::new(tree_node.view_fn());
-                    tree_view::<_, _, NeverIterate<_>, S::K>(item, parent, None)
-                }
-            })
-        },
-    );
+    let children = move || {
+        println!("make children");
+        println!("has children {}", tree_node.has_children());
+        println!("key is {:?}", (tree_node.key_fn())(&tree_node.node()));
+        if tree_node.has_children() {
+            Some(Children::new(
+                move || {
+                    let children = tree_node.children().get();
+                    // println!("children len {}", children)
+                    children
+                },
+                tree_node.key_fn(),
+                move |item| build_fucking_simple_tree(item.get()),
+            ))
+        } else {
+            None
+        }
+    };
 
-    tree_view(tree_node.node(), parent, Some(children))
+    tree_view(tree_node.node(), parent, children)
         .style(|| Style::BASE.flex_direction(FlexDirection::Column))
 }

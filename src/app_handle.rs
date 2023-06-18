@@ -818,16 +818,23 @@ impl<V: View, D: 'static> AppHandle<V, D> {
     }
 
     fn add_nodes_to_tree(tree: &ReactiveTree<()>, view: &mut impl View) {
-        let mut nodes = VecDeque::new();
-        nodes.push_back(view as &mut dyn View);
-        while let Some(cur) = nodes.pop_front() {
-            let id = cur.id();
-            println!("inserting children for {:?}", id);
-            for child in cur.children() {
-                tree.insert_child(id, child.id(), ());
-                nodes.push_back(child);
+        ViewContext::get_current().scope.batch(|| {
+            let mut nodes = VecDeque::new();
+            nodes.push_back(view as &mut dyn View);
+            while let Some(cur) = nodes.pop_front() {
+                let parent = cur.id();
+                // TODO: can clean this up after we know this is working properly
+                assert!(
+                    tree.has_untracked(&parent),
+                    "setting children for parent without having first set the parent {:?}",
+                    parent
+                );
+                for child in cur.children() {
+                    tree.insert_child(parent, child.id(), ());
+                    nodes.push_back(child);
+                }
             }
-        }
+        })
     }
 
     fn build_debug_data(view: &mut impl View) -> ReactiveTree<()> {

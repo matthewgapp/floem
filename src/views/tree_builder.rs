@@ -1,6 +1,13 @@
+use leptos_reactive::create_effect;
 use taffy::style::LengthPercentageAuto;
 
-use crate::{id::Id, style::Style, view::View, ViewContext};
+use crate::{
+    id::Id,
+    style::Style,
+    view::{ChangeFlags, View},
+    views::label,
+    ViewContext,
+};
 use std::hash::Hash;
 
 use super::{
@@ -29,7 +36,7 @@ where
 {
     iter_fn: Box<dyn Fn() -> I>,
     key_fn: Box<dyn Fn(&T) -> K>,
-    make_view_fn: Box<dyn Fn() -> Box<dyn Fn(T) -> TreeView<T, V>>>,
+    view_fn: Box<dyn Fn(T) -> TreeView<T, V>>,
 }
 
 impl<T, V, I, K> Children<T, V, I, K>
@@ -39,29 +46,14 @@ where
     pub fn new(
         iter_fn: impl Fn() -> I + 'static,
         key_fn: impl Fn(&T) -> K + 'static,
-        make_view_fn: impl Fn() -> Box<dyn Fn(T) -> TreeView<T, V>> + 'static,
+        view_fn: impl Fn(T) -> TreeView<T, V> + 'static,
     ) -> Self {
         Self {
             iter_fn: Box::new(iter_fn),
             key_fn: Box::new(key_fn),
-            make_view_fn: Box::new(make_view_fn),
+            view_fn: Box::new(view_fn),
         }
     }
-}
-
-trait TreeNode {
-    fn parent<T, V>(&self) -> Node<T, V>
-    where
-        T: 'static,
-        V: View;
-
-    // this should return an iterator of TreeNodes
-    fn children<T, V, I, K>(&self) -> Children<T, V, I, K>
-    where
-        T: 'static,
-        I: IntoIterator<Item = T>,
-        K: Hash + Eq,
-        V: View;
 }
 
 pub struct TreeView<T, V>
@@ -77,7 +69,7 @@ where
 pub fn tree_view<T, V, I, K>(
     value: T,
     parent: Node<T, V>,
-    children: Option<Children<T, V, I, K>>,
+    children: impl Fn() -> Option<Children<T, V, I, K>> + 'static,
 ) -> TreeView<T, V>
 where
     K: Hash + Eq + 'static,
@@ -85,23 +77,33 @@ where
     T: 'static,
     V: View + 'static,
 {
-    let (id, (parent, list)) = ViewContext::new_id_with_child(|| {
+    let (id, parent) = ViewContext::new_id_with_child(|| {
         let parent = (parent.view_fn)(&value);
 
-        let list = children.map(|c| {
-            Box::new(list(c.iter_fn, c.key_fn, (c.make_view_fn)())).style(|| {
-                Style::BASE
-                    .flex_direction(crate::style::FlexDirection::Column)
-                    .margin_left(LengthPercentageAuto::Points(20.))
-            })
+        let cx = ViewContext::get_current();
+
+        create_effect(cx.scope, move |_| {
+            println!("create effect ran");
+            let list = children().map(|c| {
+                // label(|| "hi".to_string())
+                Box::new(list(c.iter_fn, c.key_fn, c.view_fn)).style(|| {
+                    Style::BASE
+                        .flex_direction(crate::style::FlexDirection::Column)
+                        .margin_left(LengthPercentageAuto::Points(20.))
+                })
+            });
+
+            cx.id.update_state(list, false);
         });
-        (parent, list)
+
+        parent
     });
+    println!("tree view created");
 
     TreeView {
         id,
         parent,
-        children: list,
+        children: None,
     }
 }
 
@@ -138,7 +140,13 @@ where
         cx: &mut crate::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> crate::view::ChangeFlags {
-        crate::view::ChangeFlags::empty()
+        if let Ok(state) = state.downcast() {
+            self.children = *state;
+            cx.request_layout(self.id());
+            ChangeFlags::LAYOUT
+        } else {
+            ChangeFlags::empty()
+        }
     }
 
     fn event(
