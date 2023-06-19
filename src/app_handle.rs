@@ -438,6 +438,7 @@ impl<V: View, D: 'static> AppHandle<V, D> {
             if msgs.is_empty() {
                 break;
             }
+            println!("processing update messages {}", msgs.len());
             let mut cx = UpdateCx {
                 app_state: &mut self.app_state,
             };
@@ -492,7 +493,9 @@ impl<V: View, D: 'static> AppHandle<V, D> {
                         cx.app_state.request_layout(id);
                     }
                     UpdateMessage::State { id, state } => {
+                        println!("processing message to update state to id {:?}", id);
                         let id_path = ID_PATHS.with(|paths| paths.borrow().get(&id).cloned());
+                        println!("id path {:?}", id_path.as_ref().map(|path| &path.0));
                         if let Some(id_path) = id_path {
                             flags |= self.view.update_main(&mut cx, &id_path.0, state);
                         }

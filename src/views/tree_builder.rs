@@ -8,7 +8,7 @@ use crate::{
     views::{label, Label},
     ViewContext,
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::{hash::Hash, marker::PhantomData, rc::Rc};
 
 use super::{
     empty,
@@ -64,6 +64,7 @@ where
     id: Id,
     cx: ViewContext,
     parent: V,
+    // children_data: Option<Children<T, V, I, K>>,
     children: Option<Box<List<TreeView<T, V>, T>>>,
     // children: Option<Box<Label>>,
     phantom: PhantomData<T>,
@@ -88,17 +89,24 @@ where
         create_effect(cx.scope, move |_| {
             println!("create effect ran");
             // TODO: think that this is built with the wrong context or something
-            let list = children().map(|c| {
+            let list: Option<Box<dyn FnOnce() -> Box<_>>> = children().map(|c| {
                 // let cx = ViewContext::get_current();
                 // Box::new(label(|| "hi".to_string()))
-                Box::new(list(c.iter_fn, c.key_fn, c.view_fn)).style(|| {
-                    Style::BASE
-                        .flex_direction(crate::style::FlexDirection::Column)
-                        .margin_left(LengthPercentageAuto::Points(20.))
-                })
+                println!(
+                    "creating list within context id of {:?}",
+                    ViewContext::get_current().id
+                );
+                Box::new(|| {
+                    Box::new(list(c.iter_fn, c.key_fn, c.view_fn)).style(|| {
+                        Style::BASE
+                            .flex_direction(crate::style::FlexDirection::Column)
+                            .margin_left(LengthPercentageAuto::Points(20.))
+                    })
+                }) as Box<dyn FnOnce() -> Box<List<_, _>>>
             });
 
-            println!("update state called");
+            println!("update state called in tree view to id {:?}", cx.id);
+            // cx.id.update_state(vec![1, 2, 3], false);
             cx.id.update_state(list, false);
             // cx.id.update_state("Second version".to_string(), false);
         });
@@ -118,6 +126,7 @@ where
         cx: child_cx,
         id,
         parent,
+        // children_data: None,
         children: None,
         phantom: PhantomData,
     }
@@ -133,6 +142,7 @@ where
     }
 
     fn child(&mut self, id: Id) -> Option<&mut dyn View> {
+        println!("child called with id {:?}", id);
         if self.parent.id() == id {
             return Some(&mut self.parent);
         } else if let Some(list) = &mut self.children {
@@ -140,6 +150,7 @@ where
                 return Some(list);
             }
         }
+        println!("no child found");
         return None;
     }
 
@@ -156,20 +167,40 @@ where
         cx: &mut crate::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> crate::view::ChangeFlags {
-        println!("update function in tree builder");
+        println!(
+            "------update function in tree builder with id {:?}------",
+            self.id
+        );
         // println!("state type id {:?}", state);
         // if let Ok(string) = state.downcast() {
         //     let message: String = *string;
         //     println!("message in update state {}", message);
         // }
         if let Ok(state) = state.downcast() {
+            println!("state captured in downcast");
             // let string: String = *state;
 
             ViewContext::save();
             ViewContext::set_current(self.cx);
             println!("current context set to {:?}", self.cx.id);
-            self.children = *state;
+            let create_list: Option<Box<dyn FnOnce() -> Box<List<TreeView<T, V>, T>>>> = *state;
+            // let children: Option<Children<>>  = *state;
+            self.children = create_list.map(|list| list());
             // self.children = Some(Box::new(label(move || format!("message is: {}", string))));
+            // let numbers = Rc::new(state);
+
+            // self.children = Some(
+            //     Box::new(list(
+            //         move || (1..3),
+            //         |x| *x,
+            //         Box::new(|x: i32| label(move || x.to_string())),
+            //     ))
+            //     .style(|| {
+            //         Style::BASE
+            //             .flex_direction(crate::style::FlexDirection::Column)
+            //             .margin_left(LengthPercentageAuto::Points(20.))
+            //     }),
+            // );
             ViewContext::restore();
             println!("children set and layout requested");
             cx.request_layout(self.id());

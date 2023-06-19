@@ -47,7 +47,7 @@ where
     T: 'static,
 {
     let cx = ViewContext::get_current();
-    println!("list id {:?}", cx.id);
+    println!("list parent id {:?}", cx.id);
     let id = cx.new_id();
     println!("new id {:?}", id);
 
@@ -83,6 +83,7 @@ where
         id.update_state(diff, false);
         HashRun(hashed_items)
     });
+    println!("list with id {:?}", id);
     List {
         id,
         children: Vec::new(),
@@ -126,7 +127,7 @@ impl<V: View + 'static, T> View for List<V, T> {
         cx: &mut UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> crate::view::ChangeFlags {
-        println!("in update");
+        println!("--------in update-------");
         if let Ok(diff) = state.downcast() {
             ViewContext::save();
             ViewContext::set_current(self.cx);

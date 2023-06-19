@@ -225,7 +225,7 @@ where
     fn node(&self) -> Self::Item;
     fn has_children(&self) -> bool;
     fn children(&self) -> Self::Children;
-    fn key(&self) -> Self::KeyFn;
+    fn key_fn(&self) -> Self::KeyFn;
     fn view_fn(&self) -> Self::ViewFn;
 }
 

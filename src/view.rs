@@ -164,6 +164,7 @@ pub trait View {
         let id = id_path[0];
         let id_path = &id_path[1..];
         if id == self.id() {
+            println!("path in update main {:?}", id_path);
             if id_path.is_empty() {
                 return self.update(cx, state);
             } else if let Some(child) = self.child_mut(id_path[0]) {

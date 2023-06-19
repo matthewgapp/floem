@@ -12,8 +12,8 @@ type AppEventCallback = dyn Fn(&AppEvent);
 
 pub fn launch<V: View + 'static>(app_view: impl Fn() -> V + 'static) {
     Application::new()
-        .window(app_view, None)
-        // .window(app_view, Some(WindowConfig::default().debug()))
+        // .window(app_view, None)
+        .window(app_view, Some(WindowConfig::default().debug()))
         .run()
 }
 

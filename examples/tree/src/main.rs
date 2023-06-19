@@ -84,18 +84,26 @@ impl TreeNode<MyTreeData, Label, Vec<MyTreeData>> for MyTreeData {
         self.children.get_untracked().len() > 0
     }
 
-    fn key(&self) -> Self::KeyFn {
-        Box::new(|x: &MyTreeData| x.data.get())
+    fn key_fn(&self) -> Self::KeyFn {
+        Box::new(|x: &MyTreeData| {
+            println!("key function ran");
+            let key = x.data.get();
+            println!("key {}", key);
+            key
+        })
     }
 
     fn view_fn(&self) -> Self::ViewFn {
         Box::new(|x: &MyTreeData| {
+            // panic!("view fn");
+            println!("view function ran");
             let x = *x;
             floem::views::label(move || x.data.get().to_string())
         })
     }
 
     fn children(&self) -> Self::Children {
+        println!("children got");
         self.children
     }
 
@@ -115,13 +123,15 @@ where
     T: 'static,
 {
     use floem::views::tree_builder::{tree_view, Children, Node};
+    println!("build tree");
 
     let parent = Node::new(tree_node.view_fn());
     let children = move || {
         Some(Children::new(
             move || tree_node.children().get(),
-            tree_node.key(),
+            tree_node.key_fn(),
             move |x| {
+                println!("inside view function");
                 if tree_node.has_children() {
                     build_tree(x)
                 } else {
@@ -221,15 +231,15 @@ fn app_view_with_tree_node() -> impl View {
                         6,
                         vec![
                             MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
-                            MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
+                            // MyTreeData::node(scope, 7, vec![]),
                             MyTreeData::node(
                                 scope,
                                 8,
