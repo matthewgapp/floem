@@ -64,8 +64,8 @@ where
     id: Id,
     cx: ViewContext,
     parent: V,
-    // children: Option<Box<List<TreeView<T, V>, T>>>,
-    children: Option<Box<Label>>,
+    children: Option<Box<List<TreeView<T, V>, T>>>,
+    // children: Option<Box<Label>>,
     phantom: PhantomData<T>,
 }
 
@@ -99,13 +99,13 @@ where
             });
 
             println!("update state called");
-            // cx.id.update_state(list, false);
-            cx.id.update_state("Second version".to_string(), false);
+            cx.id.update_state(list, false);
+            // cx.id.update_state("Second version".to_string(), false);
         });
 
-        let children = Some(Box::new(label(|| "First version".to_string())));
-        let children = Some(Box::new(label(|| "First version".to_string())));
-        (parent, children)
+        // let children = Some(Box::new(label(|| "First version".to_string())));
+        // let children = Some(Box::new(label(|| "First version".to_string())));
+        (parent, ())
     });
     println!("tree view created");
 
@@ -118,7 +118,7 @@ where
         cx: child_cx,
         id,
         parent,
-        children: children,
+        children: None,
         phantom: PhantomData,
     }
 }
@@ -163,12 +163,13 @@ where
         //     println!("message in update state {}", message);
         // }
         if let Ok(state) = state.downcast() {
-            let string: String = *state;
+            // let string: String = *state;
 
             ViewContext::save();
             ViewContext::set_current(self.cx);
             println!("current context set to {:?}", self.cx.id);
-            self.children = Some(Box::new(label(move || format!("message is: {}", string))));
+            self.children = *state;
+            // self.children = Some(Box::new(label(move || format!("message is: {}", string))));
             ViewContext::restore();
             println!("children set and layout requested");
             cx.request_layout(self.id());
