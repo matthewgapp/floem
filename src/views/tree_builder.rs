@@ -5,10 +5,10 @@ use crate::{
     id::Id,
     style::Style,
     view::{ChangeFlags, View},
-    views::label,
+    views::{label, Label},
     ViewContext,
 };
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
 use super::{
     empty,
@@ -62,8 +62,11 @@ where
     V: View + 'static,
 {
     id: Id,
+    cx: ViewContext,
     parent: V,
-    children: Option<Box<List<TreeView<T, V>, T>>>,
+    // children: Option<Box<List<TreeView<T, V>, T>>>,
+    children: Option<Box<Label>>,
+    phantom: PhantomData<T>,
 }
 
 pub fn tree_view<T, V, I, K>(
@@ -77,15 +80,17 @@ where
     T: 'static,
     V: View + 'static,
 {
-    let (id, parent) = ViewContext::new_id_with_child(|| {
+    let (id, (parent, children)) = ViewContext::new_id_with_child(|| {
         let parent = (parent.view_fn)(&value);
 
         let cx = ViewContext::get_current();
 
         create_effect(cx.scope, move |_| {
             println!("create effect ran");
+            // TODO: think that this is built with the wrong context or something
             let list = children().map(|c| {
-                // label(|| "hi".to_string())
+                // let cx = ViewContext::get_current();
+                // Box::new(label(|| "hi".to_string()))
                 Box::new(list(c.iter_fn, c.key_fn, c.view_fn)).style(|| {
                     Style::BASE
                         .flex_direction(crate::style::FlexDirection::Column)
@@ -93,17 +98,28 @@ where
                 })
             });
 
-            cx.id.update_state(list, false);
+            println!("update state called");
+            // cx.id.update_state(list, false);
+            cx.id.update_state("Second version".to_string(), false);
         });
 
-        parent
+        let children = Some(Box::new(label(|| "First version".to_string())));
+        let children = Some(Box::new(label(|| "First version".to_string())));
+        (parent, children)
     });
     println!("tree view created");
 
+    let cx = ViewContext::get_current();
+    let mut child_cx = cx;
+    child_cx.id = id;
+    println!("child context id {:?}", id);
+
     TreeView {
+        cx: child_cx,
         id,
         parent,
-        children: None,
+        children: children,
+        phantom: PhantomData,
     }
 }
 
@@ -140,13 +156,27 @@ where
         cx: &mut crate::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> crate::view::ChangeFlags {
+        println!("update function in tree builder");
+        // println!("state type id {:?}", state);
+        // if let Ok(string) = state.downcast() {
+        //     let message: String = *string;
+        //     println!("message in update state {}", message);
+        // }
         if let Ok(state) = state.downcast() {
-            self.children = *state;
+            let string: String = *state;
+
+            ViewContext::save();
+            ViewContext::set_current(self.cx);
+            println!("current context set to {:?}", self.cx.id);
+            self.children = Some(Box::new(label(move || format!("message is: {}", string))));
+            ViewContext::restore();
+            println!("children set and layout requested");
             cx.request_layout(self.id());
             ChangeFlags::LAYOUT
         } else {
             ChangeFlags::empty()
         }
+        // ChangeFlags::empty()
     }
 
     fn event(
@@ -161,6 +191,7 @@ where
     fn paint(&mut self, cx: &mut crate::context::PaintCx) {
         self.parent.paint_main(cx);
         if let Some(children) = self.children.as_mut() {
+            println!("painting children");
             children.paint_main(cx);
         }
     }
@@ -171,6 +202,7 @@ where
             if let Some(children) = self.children.as_mut() {
                 nodes.push(children.layout_main(cx))
             }
+            println!("layout nodes: {:?}", nodes);
             nodes
         })
     }

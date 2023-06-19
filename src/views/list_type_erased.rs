@@ -47,13 +47,16 @@ where
     T: 'static,
 {
     let cx = ViewContext::get_current();
+    println!("list id {:?}", cx.id);
     let id = cx.new_id();
+    println!("new id {:?}", id);
 
     let mut child_cx = cx;
     child_cx.id = id;
     create_effect(cx.scope, move |prev_hash_run| {
         let items = each_fn();
         let items = items.into_iter().collect::<SmallVec<[_; 128]>>();
+        println!("list crated with {} items", items.len());
         let hashed_items = items.iter().map(&key_fn).collect::<FxIndexSet<_>>();
         let diff = if let Some(HashRun(prev_hash_run)) = prev_hash_run {
             let mut cmds = diff(&prev_hash_run, &hashed_items);
@@ -68,6 +71,7 @@ where
         } else {
             let mut diff = Diff::default();
             for (i, item) in each_fn().into_iter().enumerate() {
+                println!("applying item i {}", i);
                 diff.added.push(DiffOpAdd {
                     at: i,
                     view: Some(item),
@@ -75,6 +79,7 @@ where
             }
             diff
         };
+        println!("update state called to id {:?}", id);
         id.update_state(diff, false);
         HashRun(hashed_items)
     });
@@ -121,9 +126,11 @@ impl<V: View + 'static, T> View for List<V, T> {
         cx: &mut UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> crate::view::ChangeFlags {
+        println!("in update");
         if let Ok(diff) = state.downcast() {
             ViewContext::save();
             ViewContext::set_current(self.cx);
+            println!("applying diff");
             apply_diff(cx.app_state, *diff, &mut self.children, &self.view_fn);
             ViewContext::restore();
             cx.request_layout(self.id());
