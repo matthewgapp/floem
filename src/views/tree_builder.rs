@@ -205,7 +205,26 @@ where
         id_path: Option<&[Id]>,
         event: crate::event::Event,
     ) -> bool {
-        false
+        println!("event got in tree view");
+        let mut handled = false;
+        handled |= if cx.should_send(self.parent.id(), &event) {
+            self.parent.event_main(cx, id_path, event.clone())
+        } else {
+            false
+        };
+
+        handled |= if let Some(ref mut children) = self.children {
+            // if cx.should_send(children.id(), &event) {
+            println!("sending event to children with path {:?}", id_path);
+            children.event_main(cx, id_path, event)
+        // } else {
+        //     false
+        // }
+        } else {
+            false
+        };
+
+        handled
     }
 
     fn paint(&mut self, cx: &mut crate::context::PaintCx) {

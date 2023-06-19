@@ -9,8 +9,8 @@ use floem::{
     style::{FlexDirection, Style},
     view::View,
     views::{
-        label, tree_builder::TreeView, tree_simple, Decorators, Label, ListData, NeverIterate,
-        TreeData, TreeNode, TreeProps,
+        label, stack, tree_builder::TreeView, tree_simple, Decorators, Label, ListData,
+        NeverIterate, TreeData, TreeNode, TreeProps,
     },
     ViewContext,
 };
@@ -99,6 +99,11 @@ impl TreeNode<MyTreeData, Label, Vec<MyTreeData>> for MyTreeData {
             println!("view function ran");
             let x = *x;
             floem::views::label(move || x.data.get().to_string())
+                .hover_style(|| Style::BASE.background(Color::RED))
+                .on_click(|e| {
+                    println!("label clicked");
+                    false
+                })
         })
     }
 
@@ -277,7 +282,15 @@ fn app_view_with_tree_node() -> impl View {
         ],
     );
 
-    build_tree(tree_data_2)
+    stack(|| {
+        (
+            build_tree(tree_data_2),
+            label(|| "hi".to_string()).on_click(|e| {
+                println!("singular label clicked");
+                false
+            }),
+        )
+    })
 }
 
 fn main() {

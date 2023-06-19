@@ -164,7 +164,6 @@ pub trait View {
         let id = id_path[0];
         let id_path = &id_path[1..];
         if id == self.id() {
-            println!("path in update main {:?}", id_path);
             if id_path.is_empty() {
                 return self.update(cx, state);
             } else if let Some(child) = self.child_mut(id_path[0]) {
@@ -378,6 +377,7 @@ pub trait View {
 
         match &event {
             Event::PointerDown(event) => {
+                println!("pointer down");
                 if event.button.is_left() {
                     let rect = cx.get_size(self.id()).unwrap_or_default().to_rect();
                     let now_focused = rect.contains(event.pos);
@@ -414,6 +414,7 @@ pub trait View {
                             (*action)(&event);
                         }
                     } else {
+                        println!("setting as hovered");
                         cx.app_state.hovered.insert(id);
                         let style = cx.app_state.get_computed_style(id);
                         if let Some(cursor) = style.cursor {

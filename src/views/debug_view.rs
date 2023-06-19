@@ -9,8 +9,8 @@ use super::{build_fucking_simple_tree, SuperFuckingBasicTreeNode};
 pub fn debug_view<S, N, K>(tree_node: S) -> impl View
 where
     N: SignalGet<S> + 'static,
-    S: SuperFuckingBasicTreeNode<Item = N, K = K> + 'static,
-    K: Debug + Hash + Eq + 'static,
+    S: SuperFuckingBasicTreeNode<Item = N> + 'static,
+    // K: Debug + Hash + Eq + 'static,
 {
-    build_fucking_simple_tree(tree_node)
+    build_fucking_simple_tree::<S, N, K>(tree_node)
 }

@@ -1,8 +1,9 @@
 use leptos_reactive::{
-    create_rw_signal, ReadSignal, RwSignal, Scope, Signal, SignalGet, SignalGetUntracked,
-    SignalUpdate,
+    create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, Signal, SignalGet,
+    SignalGetUntracked, SignalUpdate,
 };
 use taffy::style::{FlexDirection, LengthPercentage, LengthPercentageAuto};
+use vello::peniko::Color;
 
 use crate::{id::Id, style::Style, view::View, ViewContext};
 
@@ -12,14 +13,7 @@ use super::{
     virtual_list, Decorators, Label, List, VirtualList, VirtualListDirection, VirtualListItemSize,
     VirtualListVector,
 };
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hash,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    rc::Rc,
-};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, ops::Deref, rc::Rc};
 
 // a tree is a list of items, each of which is a function that returns a tree
 
@@ -173,6 +167,7 @@ where
         id_path: Option<&[Id]>,
         event: crate::event::Event,
     ) -> bool {
+        println!("event in tree simple");
         false
     }
 
@@ -266,13 +261,43 @@ where
 // want a data structure that is a tree of signals
 
 #[derive(Debug)]
+struct ChildNode<T: 'static> {
+    scope: Scope,
+    data: RwSignal<T>,
+}
+
+impl<T: 'static> ChildNode<T> {
+    fn new(scope: Scope, data: T) -> Self {
+        Self {
+            scope,
+            data: create_rw_signal(scope, data),
+        }
+    }
+    fn subscribe_effect<D: 'static>(&self, effect: impl Fn((T, Option<D>)) -> D + 'static)
+    where
+        T: Clone,
+    {
+        let data = self.data;
+        create_effect(self.scope, move |prev| effect((data.get(), prev)))
+    }
+}
+
+impl<T: 'static> Clone for ChildNode<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: 'static> Copy for ChildNode<T> {}
+
+#[derive(Debug)]
 pub struct ReactiveTree<T>
 where
     T: std::fmt::Debug + 'static,
 {
     scope: Scope,
     root: Id,
-    nodes: RwSignal<HashMap<Id, RwSignal<T>>>,
+    nodes: RwSignal<HashMap<Id, ChildNode<T>>>,
     children: RwSignal<HashMap<Id, RwSignal<Vec<Id>>>>,
 }
 
@@ -290,7 +315,7 @@ where
 {
     pub fn new(scope: Scope, root: Id, data: T) -> Self {
         let mut nodes = HashMap::new();
-        nodes.insert(root, create_rw_signal(scope, data));
+        nodes.insert(root, ChildNode::new(scope, data));
         Self {
             scope,
             root,
@@ -332,13 +357,14 @@ where
         }
 
         self.nodes.update(|nodes| {
-            nodes.insert(child, create_rw_signal(self.scope, data));
+            nodes.insert(child, ChildNode::new(self.scope, data));
         });
 
         self.nodes
             .get_untracked()
             .get(&parent)
             .unwrap()
+            .data
             .update(|x| {
                 // notify the parent;
             })
@@ -398,9 +424,23 @@ where
                 id,
                 value: Signal::derive(scope, move || {
                     // get untracked here because we don't want to respond to general changes in nodes when we build this signal
-                    nodes.get_untracked().get(&id).unwrap().get()
+                    nodes.get_untracked().get(&id).unwrap().data.get()
                 }),
             }))
+        }
+    }
+
+    pub fn register_effect<D: 'static>(
+        &self,
+        id: Id,
+        effect: impl Fn((T, Option<D>)) -> D + 'static,
+    ) where
+        T: Clone,
+    {
+        if let Some(node) = self.nodes.get_untracked().get(&id) {
+            node.subscribe_effect(effect)
+        } else {
+            panic!("huh, there should have been a node");
         }
     }
 }
@@ -499,26 +539,6 @@ where
     }
 }
 
-// impl <T> IntoIterator for ConcreteTreeNode<>
-
-// impl<T> IntoIterator for ReactiveTree<T>
-// where
-//     T: Copy + Clone + 'static,
-// {
-//     type Item = TreeNodeIterItem<T>;
-//     type IntoIter = TreeNodeIter<T>;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         let first_child = self.root_children().get_untracked().first().map(|id| *id);
-//         TreeNodeIter {
-//             cur: first_child,
-//             parent: self.root,
-//             scope: self.scope,
-//             tree: self,
-//         }
-//     }
-// }
-
 impl<T> IntoIterator for ConcreteTreeNode<T>
 where
     T: Debug + Clone + 'static,
@@ -531,7 +551,6 @@ where
             .tree
             .children_untracked(&self.id)
             .and_then(|children| children.get_untracked().first().map(|id| *id));
-        println!("created iter with {:?}", first_child);
         TreeNodeIter {
             cur: first_child,
             parent: self.id,
@@ -541,9 +560,14 @@ where
     }
 }
 
+pub trait DebugInfo {
+    fn set_show_outline(&mut self, show: bool);
+    fn show_outline(&self) -> bool;
+}
+
 impl<T> SuperFuckingBasicTreeNode for ConcreteTreeNode<T>
 where
-    T: Debug + Clone + Hash + Eq + 'static,
+    T: Debug + Clone + 'static + DebugInfo,
 {
     type I = ConcreteTreeNode<T>;
     type Children = Signal<Self::I>;
@@ -577,7 +601,28 @@ where
     fn view_fn(&self) -> Self::ViewFn {
         Box::new(|x| {
             let x = *x;
+            let nodes = x.get_untracked().tree.nodes;
+            let id = x.get_untracked().id;
             label(move || format!("Node with id {:?}", x.get().id))
+                .on_event(crate::event::EventListener::PointerEnter, move |e| {
+                    println!("updating id {:?} to outline: true", id);
+                    if let Some(node) = nodes.get_untracked().get(&id) {
+                        node.data.update(|d| d.set_show_outline(true))
+                    } else {
+                        panic!("no node found in event listener");
+                    }
+                    false
+                })
+                .on_event(crate::event::EventListener::PointerLeave, move |e| {
+                    if let Some(node) = nodes.get_untracked().get(&id) {
+                        node.data.update(|d| d.set_show_outline(false))
+                    } else {
+                        panic!("no node found in event listener");
+                    }
+                    false
+                })
+                .style(|| Style::BASE.background(Color::GREEN))
+                .hover_style(|| Style::BASE.background(Color::RED))
         })
     }
 }
@@ -619,9 +664,9 @@ impl<T> IntoIterator for NeverIterate<T> {
 
 pub fn build_fucking_simple_tree<S, N, K>(tree_node: S) -> TreeView<N, S::View>
 where
-    S: SuperFuckingBasicTreeNode<Item = N, K = K> + 'static,
+    S: SuperFuckingBasicTreeNode<Item = N> + 'static,
     N: SignalGet<S>,
-    K: Debug + Hash + Eq + 'static,
+    // K: Debug + Hash + Eq + 'static,
 {
     println!("build simple tree");
     let parent = Node::<N, _>::new(tree_node.view_fn());
@@ -634,7 +679,7 @@ where
                     children
                 },
                 tree_node.key_fn(),
-                move |item| build_fucking_simple_tree(item.get()),
+                move |item| build_fucking_simple_tree::<_, _, K>(item.get()),
             ))
         } else {
             None
@@ -643,4 +688,5 @@ where
 
     tree_view(tree_node.node(), parent, children)
         .style(|| Style::BASE.flex_direction(FlexDirection::Column))
+    // .hover_style(|| Style::BASE.background(Color::REBECCA_PURPLE))
 }

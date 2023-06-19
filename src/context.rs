@@ -26,6 +26,7 @@ use crate::{
     menu::Menu,
     responsive::{GridBreakpoints, ScreenSize, ScreenSizeBp},
     style::{ComputedStyle, CursorStyle, Style},
+    views::DebugInfo,
     ViewContext,
 };
 
@@ -230,6 +231,30 @@ pub struct DragState {
     pub(crate) released_at: Option<std::time::Instant>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct DebugState {
+    show_outline: bool,
+    name: String,
+}
+
+impl DebugState {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            show_outline: false,
+        }
+    }
+}
+
+impl DebugInfo for DebugState {
+    fn show_outline(&self) -> bool {
+        self.show_outline
+    }
+    fn set_show_outline(&mut self, show: bool) {
+        self.show_outline = show;
+    }
+}
+
 /// Encapsulates and owns the global state of the application,
 /// including the `ViewState` of each view.
 pub struct AppState {
@@ -261,6 +286,9 @@ pub struct AppState {
     pub(crate) keyboard_navigation: bool,
     pub(crate) context_menu: HashMap<u32, Box<dyn Fn()>>,
     pub(crate) timers: HashMap<TimerToken, Box<dyn FnOnce()>>,
+    // pub(crate) debug_states: HashMap<Id, DebugState>,
+    pub(crate) debug_tree: Option<crate::views::ReactiveTree<DebugState>>,
+    pub(crate) debug_states: HashMap<Id, DebugState>,
 }
 
 impl Default for AppState {
@@ -297,7 +325,17 @@ impl AppState {
             grid_bps: GridBreakpoints::default(),
             context_menu: HashMap::new(),
             timers: HashMap::new(),
+            debug_tree: None,
+            debug_states: HashMap::new(),
         }
+    }
+
+    pub fn insert_debug_state(&mut self, id: Id, name: &str) {
+        self.debug_states.insert(id, DebugState::new(name));
+    }
+
+    pub(crate) fn debug_state(&mut self, id: Id) -> Option<&mut DebugState> {
+        self.debug_states.get_mut(&id)
     }
 
     pub fn view_state(&mut self, id: Id) -> &mut ViewState {
