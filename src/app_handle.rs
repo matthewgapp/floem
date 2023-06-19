@@ -209,7 +209,7 @@ pub struct AppHandle<V: View, D: 'static> {
     paint_state: PaintState,
 
     file_dialogs: FileDialogs,
-    debug_state: Option<std::rc::Rc<ReactiveTree<()>>>,
+    debug_state: Option<std::rc::Rc<ReactiveTree<String>>>,
     phantom: std::marker::PhantomData<D>,
 }
 
@@ -220,7 +220,7 @@ impl<V: View, D> Drop for AppHandle<V, D> {
 }
 
 impl<V: View> AppHandle<V, ReactiveTree<()>> {
-    pub fn init_debug_state(&mut self) -> std::rc::Rc<ReactiveTree<()>> {
+    pub fn init_debug_state(&mut self) -> std::rc::Rc<ReactiveTree<String>> {
         let debug_state = std::rc::Rc::new(Self::build_debug_data(&mut self.view));
         self.debug_state = Some(debug_state.clone());
         debug_state
@@ -438,7 +438,6 @@ impl<V: View, D: 'static> AppHandle<V, D> {
             if msgs.is_empty() {
                 break;
             }
-            println!("processing update messages {}", msgs.len());
             let mut cx = UpdateCx {
                 app_state: &mut self.app_state,
             };
@@ -493,9 +492,7 @@ impl<V: View, D: 'static> AppHandle<V, D> {
                         cx.app_state.request_layout(id);
                     }
                     UpdateMessage::State { id, state } => {
-                        println!("processing message to update state to id {:?}", id);
                         let id_path = ID_PATHS.with(|paths| paths.borrow().get(&id).cloned());
-                        println!("id path {:?}", id_path.as_ref().map(|path| &path.0));
                         if let Some(id_path) = id_path {
                             flags |= self.view.update_main(&mut cx, &id_path.0, state);
                         }
@@ -820,7 +817,7 @@ impl<V: View, D: 'static> AppHandle<V, D> {
         self.process_update();
     }
 
-    fn add_nodes_to_tree(tree: &ReactiveTree<()>, view: &mut impl View) {
+    fn add_nodes_to_tree(tree: &ReactiveTree<String>, view: &mut impl View) {
         ViewContext::get_current().scope.batch(|| {
             let mut nodes = VecDeque::new();
             nodes.push_back(view as &mut dyn View);
@@ -833,17 +830,17 @@ impl<V: View, D: 'static> AppHandle<V, D> {
                     parent
                 );
                 for child in cur.children() {
-                    tree.insert_child(parent, child.id(), ());
+                    tree.insert_child(parent, child.id(), child.debug_name().to_string());
                     nodes.push_back(child);
                 }
             }
         })
     }
 
-    fn build_debug_data(view: &mut impl View) -> ReactiveTree<()> {
+    fn build_debug_data(view: &mut impl View) -> ReactiveTree<String> {
         let cx = ViewContext::get_current();
         let scope = cx.scope;
-        let tree = ReactiveTree::<()>::new(scope, view.id(), ());
+        let tree = ReactiveTree::<String>::new(scope, view.id(), view.debug_name().to_string());
         Self::add_nodes_to_tree(&tree, view);
         println!("initial debug tree: {:#?}", tree);
         tree

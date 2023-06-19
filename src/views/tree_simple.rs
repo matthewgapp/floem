@@ -265,7 +265,7 @@ where
 
 // want a data structure that is a tree of signals
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct ReactiveTree<T>
 where
     T: std::fmt::Debug + 'static,
@@ -275,6 +275,14 @@ where
     nodes: RwSignal<HashMap<Id, RwSignal<T>>>,
     children: RwSignal<HashMap<Id, RwSignal<Vec<Id>>>>,
 }
+
+impl<T: Debug> Clone for ReactiveTree<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Debug> Copy for ReactiveTree<T> {}
 
 impl<T> ReactiveTree<T>
 where
@@ -349,16 +357,11 @@ where
         self.children.get_untracked().get(id).copied()
     }
 
-    fn next_child_untracked(&self, parent: &Id, child: &Id) -> Option<Id>
-    where
-        T: Clone + Copy,
-    {
+    fn next_child_untracked(&self, parent: &Id, child: &Id) -> Option<Id> {
         if let Some(children) = self.children_untracked(parent) {
             let children = children.get_untracked();
             let index = children.iter().position(|c| c == child);
-            let id = index.and_then(|i| children.get(i + 1).map(|id| *id));
-            id.as_ref().map(|id| self.tree_node(id).unwrap());
-            id
+            index.and_then(|i| children.get(i + 1).map(|id| *id))
         } else {
             None
         }
@@ -373,14 +376,14 @@ where
 
     pub fn root_tree_node(&self) -> Signal<ConcreteTreeNode<T>>
     where
-        T: Copy + Clone,
+        T: Clone,
     {
         self.tree_node(&self.root).unwrap()
     }
 
     fn tree_node(&self, id: &Id) -> Option<Signal<ConcreteTreeNode<T>>>
     where
-        T: Copy + Clone,
+        T: Clone,
     {
         if self.nodes.get_untracked().get(id).is_none() {
             None
@@ -402,10 +405,9 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct ConcreteTreeNode<T>
 where
-    T: std::fmt::Debug + Clone + Copy + 'static,
+    T: std::fmt::Debug + 'static,
 {
     scope: Scope,
     tree: ReactiveTree<T>,
@@ -414,19 +416,52 @@ where
     value: Signal<T>,
 }
 
-#[derive(Clone)]
-pub struct TreeNodeIter<T: Debug + Clone + 'static> {
+impl<T: Debug> Clone for ConcreteTreeNode<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Debug> Copy for ConcreteTreeNode<T> {}
+
+// pub struct Hi<T: 'static + Debug> {
+//     signal: Signal<T>,
+//     tree: ReactiveTree<T>,
+// }
+
+// impl<T: Debug> Clone for Hi<T> {
+//     fn clone(&self) -> Self {
+//         *self
+//     }
+// }
+
+// impl<T: Debug> Copy for Hi<T> {}
+
+// impl <T> Copy for ConcreteTreeNode<T>;
+
+pub struct TreeNodeIter<T: Debug + 'static> {
     scope: Scope,
     tree: ReactiveTree<T>,
     parent: Id,
     cur: Option<Id>,
 }
 
+impl<T: Debug> Clone for TreeNodeIter<T> {
+    fn clone(&self) -> Self {
+        TreeNodeIter {
+            scope: self.scope,
+            tree: self.tree,
+            parent: self.parent,
+            cur: self.cur.clone(),
+        }
+    }
+}
+
 type TreeNodeIterItem<T> = Signal<ConcreteTreeNode<T>>;
 
 impl<T> Iterator for TreeNodeIter<T>
 where
-    T: Debug + Copy + Clone + 'static,
+    T: Debug + Clone + 'static,
 {
     type Item = TreeNodeIterItem<T>;
 
@@ -464,20 +499,6 @@ where
     }
 }
 
-impl<S, T> SignalGet<ReactiveTree<T>> for WrappedReactiveTree<S, T>
-where
-    T: Debug,
-    S: SignalGet<ReactiveTree<T>> + SignalGetUntracked<ReactiveTree<T>>,
-{
-    fn get(&self) -> ReactiveTree<T> {
-        self.get()
-    }
-
-    fn try_get(&self) -> Option<ReactiveTree<T>> {
-        self.try_get()
-    }
-}
-
 // impl <T> IntoIterator for ConcreteTreeNode<>
 
 // impl<T> IntoIterator for ReactiveTree<T>
@@ -500,7 +521,7 @@ where
 
 impl<T> IntoIterator for ConcreteTreeNode<T>
 where
-    T: Debug + Copy + Clone + 'static,
+    T: Debug + Clone + 'static,
 {
     type Item = TreeNodeIterItem<T>;
     type IntoIter = TreeNodeIter<T>;
@@ -522,7 +543,7 @@ where
 
 impl<T> SuperFuckingBasicTreeNode for ConcreteTreeNode<T>
 where
-    T: Debug + Clone + Copy + Hash + Eq + 'static,
+    T: Debug + Clone + Hash + Eq + 'static,
 {
     type I = ConcreteTreeNode<T>;
     type Children = Signal<Self::I>;
@@ -605,9 +626,6 @@ where
     println!("build simple tree");
     let parent = Node::<N, _>::new(tree_node.view_fn());
     let children = move || {
-        println!("make children");
-        println!("has children {}", tree_node.has_children());
-        println!("key is {:?}", (tree_node.key_fn())(&tree_node.node()));
         if tree_node.has_children() {
             Some(Children::new(
                 move || {

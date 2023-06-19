@@ -81,21 +81,14 @@ where
     T: 'static,
     V: View + 'static,
 {
-    let (id, (parent, children)) = ViewContext::new_id_with_child(|| {
+    let (id, parent) = ViewContext::new_id_with_child(|| {
         let parent = (parent.view_fn)(&value);
 
         let cx = ViewContext::get_current();
 
         create_effect(cx.scope, move |_| {
             println!("create effect ran");
-            // TODO: think that this is built with the wrong context or something
             let list: Option<Box<dyn FnOnce() -> Box<_>>> = children().map(|c| {
-                // let cx = ViewContext::get_current();
-                // Box::new(label(|| "hi".to_string()))
-                println!(
-                    "creating list within context id of {:?}",
-                    ViewContext::get_current().id
-                );
                 Box::new(|| {
                     Box::new(list(c.iter_fn, c.key_fn, c.view_fn)).style(|| {
                         Style::BASE
@@ -105,15 +98,10 @@ where
                 }) as Box<dyn FnOnce() -> Box<List<_, _>>>
             });
 
-            println!("update state called in tree view to id {:?}", cx.id);
-            // cx.id.update_state(vec![1, 2, 3], false);
             cx.id.update_state(list, false);
-            // cx.id.update_state("Second version".to_string(), false);
         });
 
-        // let children = Some(Box::new(label(|| "First version".to_string())));
-        // let children = Some(Box::new(label(|| "First version".to_string())));
-        (parent, ())
+        parent
     });
     println!("tree view created");
 
