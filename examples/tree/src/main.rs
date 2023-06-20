@@ -16,15 +16,9 @@ use floem::{
 };
 
 /*
-
-
-
 Learnings:
 1. Recursive nature means that you need recursive elements to be boxed.
 2. Closure types (concrete) cannot call themselves. If a given generic param is both recursive, meaning that the
-
-
-
  */
 
 #[derive(Clone, Copy)]
@@ -129,73 +123,6 @@ where
         .style(|| Style::BASE.flex_direction(FlexDirection::Column))
 }
 
-// fn app_view_with_tree_builder() -> impl View {
-//     let cx = ViewContext::get_current();
-//     use floem::views::tree_builder::{tree_view, Children, Node};
-
-//     let signal = create_rw_signal(cx.scope, {
-//         (0..10)
-//             .map(|x| create_rw_signal(cx.scope, x))
-//             .collect::<Vec<_>>()
-//     });
-
-//     let write_signal = signal;
-
-//     // needs a way to tell me to build children
-//     // need to get a type that is is a closure that returns IntoIter<T> where T: SignalGet
-//     // need a type that returns a closure that is |value: T|  -> V where V: View, T: SignalGet
-
-//     let parent = Node::new(|data: &ReadSignal<_>| {
-//         let data = *data;
-//         label(move || format!("Parent: {}", data.get()))
-//     });
-//     let children = Children::new(
-//         move || {
-//             println!("rebuilding list");
-//             let list = write_signal
-//                 .get()
-//                 .iter()
-//                 .map(|x| x.read_only())
-//                 .collect::<Vec<_>>();
-//             println!("list len: {}", list.len());
-//             list
-//         },
-//         |x: &ReadSignal<_>| x.get(),
-//         {
-//             Box::new(|x| {
-//                 let parent_2 = Node::new(|x: &ReadSignal<_>| {
-//                     let x = *x;
-//                     label(move || format!("Parent Level 2: {}", x.get()))
-//                 });
-//                 tree_view::<_, _, NeverIterate<_>, i32>(x, parent_2, || None)
-//             })
-//         },
-//     );
-
-//     let data = create_rw_signal(cx.scope, 0);
-
-//     floem::views::stack(|| {
-//         (
-//             label(|| "Click me".to_string())
-//                 .on_click(move |_| {
-//                     write_signal.get_untracked().iter().for_each(|x| {
-//                         x.update(|x| {
-//                             *x += 1;
-//                         })
-//                     });
-//                     write_signal.update(|x| x.push(create_rw_signal(cx.scope, 0)));
-//                     true
-//                 })
-//                 .keyboard_navigatable()
-//                 .focus_visible_style(|| Style::BASE.border(2.).border_color(Color::BLUE))
-//                 .style(|| Style::BASE.border(1.0).border_radius(10.0).padding_px(10.0)),
-//             // button
-//             tree_view(data.read_only(), parent, Some(children))
-//                 .style(|| Style::BASE.flex_direction(FlexDirection::Column)),
-//         )
-//     })
-// }
-
 fn app_view_with_tree_node() -> impl View {
     let cx = ViewContext::get_current();
     let scope = cx.scope;
@@ -214,15 +141,6 @@ fn app_view_with_tree_node() -> impl View {
                         6,
                         vec![
                             MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
-                            // MyTreeData::node(scope, 7, vec![]),
                             MyTreeData::node(
                                 scope,
                                 8,
