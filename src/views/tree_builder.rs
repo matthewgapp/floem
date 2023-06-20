@@ -5,13 +5,11 @@ use crate::{
     id::Id,
     style::Style,
     view::{ChangeFlags, View},
-    views::{label, Label},
     ViewContext,
 };
-use std::{hash::Hash, marker::PhantomData, rc::Rc};
+use std::{hash::Hash, marker::PhantomData};
 
 use super::{
-    empty,
     list_type_erased::{list, List},
     Decorators,
 };
@@ -160,48 +158,17 @@ where
         cx: &mut crate::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> crate::view::ChangeFlags {
-        println!(
-            "------update function in tree builder with id {:?}------",
-            self.id
-        );
-        // println!("state type id {:?}", state);
-        // if let Ok(string) = state.downcast() {
-        //     let message: String = *string;
-        //     println!("message in update state {}", message);
-        // }
         if let Ok(state) = state.downcast() {
-            println!("state captured in downcast");
-            // let string: String = *state;
-
             ViewContext::save();
             ViewContext::set_current(self.cx);
-            println!("current context set to {:?}", self.cx.id);
             let create_list: Option<Box<dyn FnOnce() -> Box<List<TreeView<T, V>, T>>>> = *state;
-            // let children: Option<Children<>>  = *state;
             self.children = create_list.map(|list| list());
-            // self.children = Some(Box::new(label(move || format!("message is: {}", string))));
-            // let numbers = Rc::new(state);
-
-            // self.children = Some(
-            //     Box::new(list(
-            //         move || (1..3),
-            //         |x| *x,
-            //         Box::new(|x: i32| label(move || x.to_string())),
-            //     ))
-            //     .style(|| {
-            //         Style::BASE
-            //             .flex_direction(crate::style::FlexDirection::Column)
-            //             .margin_left(LengthPercentageAuto::Points(20.))
-            //     }),
-            // );
             ViewContext::restore();
-            println!("children set and layout requested");
             cx.request_layout(self.id());
             ChangeFlags::LAYOUT
         } else {
             ChangeFlags::empty()
         }
-        // ChangeFlags::empty()
     }
 
     fn event(
@@ -219,12 +186,8 @@ where
         };
 
         handled |= if let Some(ref mut children) = self.children {
-            // if cx.should_send(children.id(), &event) {
             println!("sending event to children with path {:?}", id_path);
             children.event_main(cx, id_path, event)
-        // } else {
-        //     false
-        // }
         } else {
             false
         };
@@ -235,7 +198,6 @@ where
     fn paint(&mut self, cx: &mut crate::context::PaintCx) {
         self.parent.paint_main(cx);
         if let Some(children) = self.children.as_mut() {
-            println!("painting children");
             children.paint_main(cx);
         }
     }
@@ -246,7 +208,6 @@ where
             if let Some(children) = self.children.as_mut() {
                 nodes.push(children.layout_main(cx))
             }
-            println!("layout nodes: {:?}", nodes);
             nodes
         })
     }

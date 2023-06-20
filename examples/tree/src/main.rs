@@ -10,7 +10,7 @@ use floem::{
     view::View,
     views::{
         label, stack, tree_builder::TreeView, tree_simple, Decorators, Label, ListData,
-        NeverIterate, TreeData, TreeNode, TreeProps,
+        NeverIterate, TreeNode, TreeProps,
     },
     ViewContext,
 };
