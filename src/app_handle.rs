@@ -1,8 +1,12 @@
+use std::collections::VecDeque;
+
 use std::time::Duration;
 use std::{any::Any, collections::HashMap};
 
 use crate::animate::AnimValue;
+use crate::context::DebugState;
 use crate::view::{view_debug_tree, view_tab_navigation};
+use crate::views::{DebugInfo, ReactiveTree};
 use floem_renderer::Renderer;
 use glazier::kurbo::{Affine, Point, Rect, Vec2};
 use glazier::{FileDialogOptions, FileDialogToken, FileInfo, Scale, TimerToken, WinHandler};
@@ -189,6 +193,10 @@ pub enum UpdateMessage {
         menu: Menu,
         pos: Point,
     },
+    ShowDebugOutline {
+        id: Id,
+        show: bool,
+    },
 }
 
 /// The top-level handle that is passed into the backend interface (e.g. `glazier`) to interact to window events.
@@ -214,6 +222,14 @@ impl<V: View> Drop for AppHandle<V> {
 }
 
 impl<V: View> AppHandle<V> {
+    pub(crate) fn init_debug_state(&mut self) -> ReactiveTree<DebugState> {
+        let debug_state = Self::build_debug_data(&mut self.view);
+        self.app_state.debug_tree = Some(debug_state);
+        debug_state
+    }
+}
+
+impl<V: View> AppHandle<V> {
     pub fn new(scope: Scope, app_logic: impl FnOnce() -> V) -> Self {
         let cx = ViewContext {
             scope,
@@ -223,6 +239,7 @@ impl<V: View> AppHandle<V> {
         ViewContext::set_current(cx);
 
         let view = app_logic();
+
         Self {
             scope,
             view,
@@ -252,6 +269,8 @@ impl<V: View> AppHandle<V> {
                 id.request_layout();
             });
         }
+
+        self.update_tree();
     }
 
     pub fn paint(&mut self) {
@@ -569,6 +588,13 @@ impl<V: View> AppHandle<V> {
                         cx.app_state.update_context_menu(menu);
                         self.handle.show_context_menu(platform_menu, pos);
                     }
+
+                    UpdateMessage::ShowDebugOutline { id, show } => {
+                        if let Some(debug_state) = cx.app_state.debug_state(id) {
+                            debug_state.set_show_outline(show);
+                            cx.request_layout(id);
+                        }
+                    }
                 }
             }
         }
@@ -794,6 +820,46 @@ impl<V: View> AppHandle<V> {
         }
         self.process_update();
     }
+
+    fn add_nodes_to_tree(tree: &ReactiveTree<DebugState>, view: &mut impl View) {
+        ViewContext::get_current().scope.batch(|| {
+            let mut nodes = VecDeque::new();
+            nodes.push_back(view as &mut dyn View);
+            while let Some(cur) = nodes.pop_front() {
+                let parent = cur.id();
+                // TODO: can clean this up after we know this is working properly
+                assert!(
+                    tree.has_untracked(&parent),
+                    "setting children for parent without having first set the parent {:?}",
+                    parent
+                );
+                for child in cur.children_mut() {
+                    tree.insert_child(parent, child.id(), DebugState::new(&child.debug_name()));
+                    let child_id = child.id();
+                    tree.register_effect(child_id, move |(state, _)| {
+                        child_id.update_debug_outline(state.show_outline())
+                    });
+                    nodes.push_back(child);
+                }
+            }
+        })
+    }
+
+    fn build_debug_data(view: &mut impl View) -> ReactiveTree<DebugState> {
+        let cx = ViewContext::get_current();
+        let scope = cx.scope;
+        let tree =
+            ReactiveTree::<DebugState>::new(scope, view.id(), DebugState::new(&view.debug_name()));
+        Self::add_nodes_to_tree(&tree, view);
+        tree
+    }
+
+    fn update_tree(&mut self) {
+        if let Some(ref tree) = self.app_state.debug_tree {
+            panic!();
+            Self::add_nodes_to_tree(tree, &mut self.view);
+        }
+    }
 }
 
 impl<V: View> WinHandler for AppHandle<V> {
@@ -906,4 +972,12 @@ impl<V: View> WinHandler for AppHandle<V> {
         self.event(Event::WindowClosed);
         glazier::Application::global().quit();
     }
+}
+
+// impl TreeNode for
+
+trait Tree<T> {
+    fn insert_root(&mut self, id: Id, data: T);
+    fn insert_child(&mut self, id: Id, data: T);
+    fn remove_child(&mut self, id: Id);
 }

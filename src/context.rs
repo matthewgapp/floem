@@ -26,6 +26,7 @@ use crate::{
     menu::Menu,
     responsive::{GridBreakpoints, ScreenSize, ScreenSizeBp},
     style::{ComputedStyle, CursorStyle, Style},
+    views::DebugInfo,
     ViewContext,
 };
 
@@ -178,8 +179,8 @@ impl ViewState {
                 let props = animation.props();
 
                 for (kind, _) in props {
-                    let val = animation
-                        .animate_prop(animation.elapsed().unwrap_or(Duration::ZERO), &kind);
+                    let val =
+                        animation.animate_prop(animation.elapsed().unwrap_or(Duration::ZERO), kind);
                     match kind {
                         AnimPropKind::Width => {
                             computed_style = computed_style.width_px(val.get_f32());
@@ -230,6 +231,33 @@ pub struct DragState {
     pub(crate) released_at: Option<std::time::Instant>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct DebugState {
+    show_outline: bool,
+    name: String,
+}
+
+impl DebugState {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            show_outline: false,
+        }
+    }
+}
+
+impl DebugInfo for DebugState {
+    fn show_outline(&self) -> bool {
+        self.show_outline
+    }
+    fn set_show_outline(&mut self, show: bool) {
+        self.show_outline = show;
+    }
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 /// Encapsulates and owns the global state of the application,
 /// including the `ViewState` of each view.
 pub struct AppState {
@@ -261,6 +289,9 @@ pub struct AppState {
     pub(crate) keyboard_navigation: bool,
     pub(crate) context_menu: HashMap<u32, Box<dyn Fn()>>,
     pub(crate) timers: HashMap<TimerToken, Box<dyn FnOnce()>>,
+    // pub(crate) debug_states: HashMap<Id, DebugState>,
+    pub(crate) debug_tree: Option<crate::views::ReactiveTree<DebugState>>,
+    pub(crate) debug_states: HashMap<Id, DebugState>,
 }
 
 impl Default for AppState {
@@ -297,7 +328,17 @@ impl AppState {
             grid_bps: GridBreakpoints::default(),
             context_menu: HashMap::new(),
             timers: HashMap::new(),
+            debug_tree: None,
+            debug_states: HashMap::new(),
         }
+    }
+
+    pub fn insert_debug_state(&mut self, id: Id, name: &str) {
+        self.debug_states.insert(id, DebugState::new(name));
+    }
+
+    pub(crate) fn debug_state(&mut self, id: Id) -> Option<&mut DebugState> {
+        self.debug_states.get_mut(&id)
     }
 
     pub fn view_state(&mut self, id: Id) -> &mut ViewState {
@@ -496,7 +537,8 @@ impl AppState {
     // TODO: animated should be a HashMap<Id, AnimId>
     // so we don't have to loop through all view states
     pub(crate) fn get_view_id_by_anim_id(&self, anim_id: AnimId) -> Id {
-        self.view_states
+        *self
+            .view_states
             .iter()
             .filter(|(_, vs)| {
                 vs.animation
@@ -504,10 +546,9 @@ impl AppState {
                     .map(|a| a.id() == anim_id)
                     .unwrap_or(false)
             })
-            .nth(0)
+            .next()
             .unwrap()
             .0
-            .clone()
     }
 
     pub(crate) fn update_context_menu(&mut self, mut menu: Menu) {

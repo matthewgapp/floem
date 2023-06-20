@@ -4,8 +4,10 @@ use super::assert_valid_time;
 
 /// Alters how the easing function behaves, i.e. how the animation interpolates.
 #[derive(Debug, Clone, Copy)]
+#[derive(Default)]
 pub enum EasingMode {
     /// Interpolation follows the mathematical formula associated with the easing function.
+    #[default]
     In,
     /// Interpolation follows 100% interpolation minus the output of the formula associated with the easing function.
     Out,
@@ -41,11 +43,7 @@ pub enum EasingFn {
     Sine,
 }
 
-impl Default for EasingMode {
-    fn default() -> Self {
-        EasingMode::In
-    }
-}
+
 
 // See https://easings.net/ and
 // https://learn.microsoft.com/en-us/dotnet/desktop/wpf/graphics-multimedia/easing-functions

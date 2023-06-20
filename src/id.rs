@@ -171,7 +171,7 @@ impl Id {
                     msgs.push(UpdateMessage::State {
                         id: *self,
                         state: Box::new(state),
-                    })
+                    });
                 });
             } else {
                 DEFERRED_UPDATE_MESSAGES.with(|msgs| {
@@ -344,6 +344,16 @@ impl Id {
                 let mut msgs = msgs.borrow_mut();
                 let msgs = msgs.entry(root).or_default();
                 msgs.push(UpdateMessage::ShowContextMenu { menu, pos })
+            });
+        }
+    }
+
+    pub fn update_debug_outline(&self, show: bool) {
+        if let Some(root) = self.root_id() {
+            UPDATE_MESSAGES.with(|msgs| {
+                let mut msgs = msgs.borrow_mut();
+                let msgs = msgs.entry(root).or_default();
+                msgs.push(UpdateMessage::ShowDebugOutline { id: *self, show })
             });
         }
     }

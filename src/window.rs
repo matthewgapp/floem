@@ -5,6 +5,7 @@ pub struct WindowConfig {
     pub(crate) size: Option<Size>,
     pub(crate) position: Option<Point>,
     pub(crate) show_titlebar: Option<bool>,
+    pub(crate) debug: bool,
 }
 
 impl WindowConfig {
@@ -20,6 +21,11 @@ impl WindowConfig {
 
     pub fn show_titlebar(mut self, show_titlebar: bool) -> Self {
         self.show_titlebar = Some(show_titlebar);
+        self
+    }
+
+    pub fn debug(mut self) -> Self {
+        self.debug = true;
         self
     }
 }
