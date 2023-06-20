@@ -946,6 +946,33 @@ fn view_nested_last_child(view: &dyn View) -> &dyn View {
     last_child
 }
 
+/// Produces an ascii art debug display of all of the views.
+pub(crate) fn view_debug_tree(root_view: &dyn View) {
+    let mut views = vec![(root_view, Vec::new())];
+    while let Some((current_view, active_lines)) = views.pop() {
+        // Ascii art for the tree view
+        if let Some((leaf, root)) = active_lines.split_last() {
+            for line in root {
+                print!("{}", if *line { "│   " } else { "    " });
+            }
+            print!("{}", if *leaf { "├── " } else { "└── " });
+        }
+        println!("{:?} {}", current_view.id(), &current_view.debug_name());
+
+        let mut children = current_view.children();
+        if let Some(last_child) = children.pop() {
+            views.push((last_child, [active_lines.as_slice(), &[false]].concat()));
+        }
+
+        views.extend(
+            children
+                .into_iter()
+                .rev()
+                .map(|child| (child, [active_lines.as_slice(), &[true]].concat())),
+        );
+    }
+}
+
 impl<T: View> View for Box<T> {
     fn id(&self) -> Id {
         (**self).id()

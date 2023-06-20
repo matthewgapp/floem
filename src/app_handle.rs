@@ -6,9 +6,8 @@ use std::{any::Any, collections::HashMap};
 
 use crate::animate::AnimValue;
 use crate::context::DebugState;
-use crate::view::view_tab_navigation;
+use crate::view::{view_debug_tree, view_tab_navigation};
 use crate::views::{DebugInfo, ReactiveTree, TreeNode};
-use crate::views::{ReactiveTree, TreeNode};
 use floem_renderer::Renderer;
 use glazier::kurbo::{Affine, Point, Rect, Vec2};
 use glazier::{FileDialogOptions, FileDialogToken, FileInfo, Scale, TimerToken, WinHandler};
@@ -835,7 +834,7 @@ impl<V: View> AppHandle<V> {
                     "setting children for parent without having first set the parent {:?}",
                     parent
                 );
-                for child in cur.children() {
+                for child in cur.children_mut() {
                     tree.insert_child(parent, child.id(), DebugState::new(&child.debug_name()));
                     let child_id = child.id();
                     tree.register_effect(child_id, move |(state, _)| {

@@ -129,20 +129,25 @@ where
         self.id
     }
 
-    fn child(&mut self, id: Id) -> Option<&mut dyn View> {
-        println!("child called with id {:?}", id);
-        if self.parent.id() == id {
-            return Some(&mut self.parent);
-        } else if let Some(list) = &mut self.children {
-            if list.id() == id {
-                return Some(list);
-            }
-        }
-        println!("no child found");
-        return None;
+    fn child(&self, id: Id) -> Option<&dyn View> {
+        self.children().into_iter().find(|child| child.id() == id)
     }
 
-    fn children(&mut self) -> Vec<&mut dyn View> {
+    fn child_mut(&mut self, id: Id) -> Option<&mut dyn View> {
+        self.children_mut()
+            .into_iter()
+            .find(|child| child.id() == id)
+    }
+
+    fn children(&self) -> Vec<&dyn View> {
+        let mut children = vec![&self.parent as &dyn View];
+        if let Some(list) = &self.children {
+            children.push(list);
+        }
+        children
+    }
+
+    fn children_mut(&mut self) -> Vec<&mut dyn View> {
         let mut children = vec![&mut self.parent as &mut dyn View];
         if let Some(list) = &mut self.children {
             children.push(list);
