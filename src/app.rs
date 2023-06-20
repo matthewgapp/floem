@@ -5,7 +5,7 @@ use crate::{
     app_handle::AppHandle,
     id::Id,
     view::View,
-    views::{debug_view::debug_view, ReactiveTree},
+    views::{debug_view::debug_view},
     window::WindowConfig,
 };
 

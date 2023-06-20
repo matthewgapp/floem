@@ -1,19 +1,18 @@
 use leptos_reactive::{
-    create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, Signal, SignalGet,
-    SignalGetUntracked, SignalUpdate,
+    create_effect, create_rw_signal, RwSignal, Scope, Signal, SignalGet, SignalGetUntracked,
+    SignalUpdate,
 };
-use taffy::style::{FlexDirection, LengthPercentage, LengthPercentageAuto};
+use taffy::style::FlexDirection;
 use vello::peniko::Color;
 
-use crate::{id::Id, style::Style, view::View, ViewContext};
+use crate::{id::Id, style::Style, view::View};
 
 use super::{
-    label, list, scroll,
+    label,
     tree_builder::{tree_view, Children, Node, TreeView},
-    virtual_list, Decorators, Label, List, VirtualList, VirtualListDirection, VirtualListItemSize,
-    VirtualListVector,
+    Decorators, Label,
 };
-use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, ops::Deref};
 
 // needs a way to tell me to build children
 // need to get a type that is is a closure that returns IntoIter<T> where T: SignalGet
@@ -148,12 +147,7 @@ where
 
         let children = self.children.get_untracked();
         if let Some(parent_children) = children.get(&parent) {
-            if parent_children
-                .get_untracked()
-                .iter()
-                .find(|x| **x == child)
-                .is_none()
-            {
+            if !parent_children.get_untracked().iter().any(|x| *x == child) {
                 parent_children.update(|parent_children| parent_children.push(child));
             }
         } else {
@@ -179,7 +173,7 @@ where
             .get(&parent)
             .unwrap()
             .data
-            .update(|x| {
+            .update(|_x| {
                 // notify the parent;
             })
     }
@@ -201,7 +195,7 @@ where
         if let Some(children) = self.children_untracked(parent) {
             let children = children.get_untracked();
             let index = children.iter().position(|c| c == child);
-            index.and_then(|i| children.get(i + 1).map(|id| *id))
+            index.and_then(|i| children.get(i + 1).copied())
         } else {
             None
         }
@@ -306,7 +300,7 @@ impl<T: Debug> Clone for TreeNodeIter<T> {
             scope: self.scope,
             tree: self.tree,
             parent: self.parent,
-            cur: self.cur.clone(),
+            cur: self.cur,
         }
     }
 }
@@ -364,7 +358,7 @@ where
         let first_child = self
             .tree
             .children_untracked(&self.id)
-            .and_then(|children| children.get_untracked().first().map(|id| *id));
+            .and_then(|children| children.get_untracked().first().copied());
         TreeNodeIter {
             cur: first_child,
             parent: self.id,
@@ -400,7 +394,7 @@ where
             .children
             .get()
             .get(&self.id)
-            .map(|children| children.get().len() > 0)
+            .map(|children| !children.get().is_empty())
             .unwrap_or_default()
     }
 
@@ -418,7 +412,7 @@ where
             let nodes = x.get_untracked().tree.nodes;
             let id = x.get_untracked().id;
             label(move || format!("Node with id {:?}", x.get().id))
-                .on_event(crate::event::EventListener::PointerEnter, move |e| {
+                .on_event(crate::event::EventListener::PointerEnter, move |_e| {
                     println!("updating id {:?} to outline: true", id);
                     if let Some(node) = nodes.get_untracked().get(&id) {
                         node.data.update(|d| d.set_show_outline(true))
@@ -427,7 +421,7 @@ where
                     }
                     false
                 })
-                .on_event(crate::event::EventListener::PointerLeave, move |e| {
+                .on_event(crate::event::EventListener::PointerLeave, move |_e| {
                     if let Some(node) = nodes.get_untracked().get(&id) {
                         node.data.update(|d| d.set_show_outline(false))
                     } else {
@@ -488,9 +482,8 @@ where
         if tree_node.has_children() {
             Some(Children::new(
                 move || {
-                    let children = tree_node.children().get();
                     // println!("children len {}", children)
-                    children
+                    tree_node.children().get()
                 },
                 tree_node.key_fn(),
                 move |item| build_fucking_simple_tree::<_, _, K>(item.get()),

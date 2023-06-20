@@ -1,17 +1,17 @@
 use std::collections::VecDeque;
-use std::default;
-use std::marker::PhantomData;
+
+
 use std::time::Duration;
 use std::{any::Any, collections::HashMap};
 
 use crate::animate::AnimValue;
 use crate::context::DebugState;
 use crate::view::{view_debug_tree, view_tab_navigation};
-use crate::views::{DebugInfo, ReactiveTree, TreeNode};
+use crate::views::{DebugInfo, ReactiveTree};
 use floem_renderer::Renderer;
 use glazier::kurbo::{Affine, Point, Rect, Vec2};
 use glazier::{FileDialogOptions, FileDialogToken, FileInfo, Scale, TimerToken, WinHandler};
-use leptos_reactive::{create_rw_signal, RwSignal, Scope};
+use leptos_reactive::{Scope};
 
 use crate::menu::Menu;
 use crate::{
@@ -225,7 +225,7 @@ impl<V: View> Drop for AppHandle<V> {
 impl<V: View> AppHandle<V> {
     pub(crate) fn init_debug_state(&mut self) -> ReactiveTree<DebugState> {
         let debug_state = Self::build_debug_data(&mut self.view);
-        self.app_state.debug_tree = Some(debug_state.clone());
+        self.app_state.debug_tree = Some(debug_state);
         debug_state
     }
 }
@@ -858,7 +858,7 @@ impl<V: View> AppHandle<V> {
 
     fn update_tree(&mut self) {
         if let Some(ref tree) = self.app_state.debug_tree {
-            Self::add_nodes_to_tree(&tree, &mut self.view);
+            Self::add_nodes_to_tree(tree, &mut self.view);
         }
     }
 }
