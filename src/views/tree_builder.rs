@@ -1,7 +1,9 @@
+use glazier::kurbo::Rect;
 use leptos_reactive::create_effect;
 use taffy::style::LengthPercentageAuto;
 
 use crate::{
+    event::Event,
     id::Id,
     style::Style,
     view::{ChangeFlags, View},
@@ -85,7 +87,6 @@ where
         let cx = ViewContext::get_current();
 
         create_effect(cx.scope, move |_| {
-            println!("create effect ran");
             let list: Option<Box<dyn FnOnce() -> Box<_>>> = children().map(|c| {
                 Box::new(|| {
                     Box::new(list(c.iter_fn, c.key_fn, c.view_fn)).style(|| {
@@ -101,12 +102,10 @@ where
 
         parent
     });
-    println!("tree view created");
 
     let cx = ViewContext::get_current();
     let mut child_cx = cx;
     child_cx.id = id;
-    println!("child context id {:?}", id);
 
     TreeView {
         cx: child_cx,
@@ -177,22 +176,28 @@ where
         id_path: Option<&[Id]>,
         event: crate::event::Event,
     ) -> bool {
-        println!("event got in tree view");
         let mut handled = false;
-        handled |= if cx.should_send(self.parent.id(), &event) {
-            self.parent.event_main(cx, id_path, event.clone())
-        } else {
-            false
-        };
-
-        handled |= if let Some(ref mut children) = self.children {
-            println!("sending event to children with path {:?}", id_path);
-            children.event_main(cx, id_path, event)
-        } else {
-            false
-        };
-
+        handled |= cx.should_send(self.parent.id(), &event)
+            && self.parent.event_main(cx, id_path, event.clone());
+        handled |= self
+            .children
+            .as_mut()
+            .map(|children| {
+                cx.should_send(children.id(), &event) && children.event_main(cx, id_path, event)
+            })
+            .unwrap_or_default();
         handled
+    }
+
+    fn compute_layout(
+        &mut self,
+        cx: &mut crate::context::LayoutCx,
+    ) -> Option<glazier::kurbo::Rect> {
+        let mut layout_rect = Rect::ZERO;
+        for child in &mut self.children_mut() {
+            layout_rect = layout_rect.union(child.compute_layout_main(cx));
+        }
+        Some(layout_rect)
     }
 
     fn paint(&mut self, cx: &mut crate::context::PaintCx) {
@@ -213,6 +218,6 @@ where
     }
 
     fn debug_name(&self) -> std::borrow::Cow<'static, str> {
-        "TreeBuilderView".into()
+        "TreeView".into()
     }
 }

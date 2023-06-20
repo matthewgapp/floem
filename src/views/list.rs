@@ -44,7 +44,6 @@ where
     V: View + 'static,
     T: 'static,
 {
-    println!("list created");
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
@@ -53,7 +52,6 @@ where
     create_effect(cx.scope, move |prev_hash_run| {
         let items = each_fn();
         let items = items.into_iter().collect::<SmallVec<[_; 128]>>();
-        println!("items generated in list {}", items.len());
         let hashed_items = items.iter().map(&key_fn).collect::<FxIndexSet<_>>();
         let diff = if let Some(HashRun(prev_hash_run)) = prev_hash_run {
             let mut cmds = diff(&prev_hash_run, &hashed_items);

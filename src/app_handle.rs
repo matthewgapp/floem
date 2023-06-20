@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-
 use std::time::Duration;
 use std::{any::Any, collections::HashMap};
 
@@ -11,7 +10,7 @@ use crate::views::{DebugInfo, ReactiveTree};
 use floem_renderer::Renderer;
 use glazier::kurbo::{Affine, Point, Rect, Vec2};
 use glazier::{FileDialogOptions, FileDialogToken, FileInfo, Scale, TimerToken, WinHandler};
-use leptos_reactive::{Scope};
+use leptos_reactive::Scope;
 
 use crate::menu::Menu;
 use crate::{
@@ -852,12 +851,12 @@ impl<V: View> AppHandle<V> {
         let tree =
             ReactiveTree::<DebugState>::new(scope, view.id(), DebugState::new(&view.debug_name()));
         Self::add_nodes_to_tree(&tree, view);
-        println!("initial debug tree: {:#?}", tree);
         tree
     }
 
     fn update_tree(&mut self) {
         if let Some(ref tree) = self.app_state.debug_tree {
+            panic!();
             Self::add_nodes_to_tree(tree, &mut self.view);
         }
     }

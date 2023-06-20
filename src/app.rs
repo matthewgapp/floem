@@ -2,11 +2,7 @@ use glazier::{kurbo::Size, WindowBuilder};
 use leptos_reactive::{create_runtime, raw_scope_and_disposer, Scope, SignalGetUntracked};
 
 use crate::{
-    app_handle::AppHandle,
-    id::Id,
-    view::View,
-    views::{debug_view::debug_view},
-    window::WindowConfig,
+    app_handle::AppHandle, id::Id, view::View, views::debug_view::debug_view, window::WindowConfig,
 };
 
 type AppEventCallback = dyn Fn(&AppEvent);

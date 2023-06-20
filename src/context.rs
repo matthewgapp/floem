@@ -179,8 +179,8 @@ impl ViewState {
                 let props = animation.props();
 
                 for (kind, _) in props {
-                    let val = animation
-                        .animate_prop(animation.elapsed().unwrap_or(Duration::ZERO), kind);
+                    let val =
+                        animation.animate_prop(animation.elapsed().unwrap_or(Duration::ZERO), kind);
                     match kind {
                         AnimPropKind::Width => {
                             computed_style = computed_style.width_px(val.get_f32());
@@ -252,6 +252,9 @@ impl DebugInfo for DebugState {
     }
     fn set_show_outline(&mut self, show: bool) {
         self.show_outline = show;
+    }
+    fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -534,14 +537,16 @@ impl AppState {
     // TODO: animated should be a HashMap<Id, AnimId>
     // so we don't have to loop through all view states
     pub(crate) fn get_view_id_by_anim_id(&self, anim_id: AnimId) -> Id {
-        *self.view_states
+        *self
+            .view_states
             .iter()
             .filter(|(_, vs)| {
                 vs.animation
                     .as_ref()
                     .map(|a| a.id() == anim_id)
                     .unwrap_or(false)
-            }).next()
+            })
+            .next()
             .unwrap()
             .0
     }

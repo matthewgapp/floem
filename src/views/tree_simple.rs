@@ -107,8 +107,6 @@ where
 
     // TODO: fix up this function so that it's not dogshit
     pub fn insert_child(&self, parent: Id, child: Id, data: T) {
-        println!("inserting child {:?}", child);
-
         let children = self.children.get_untracked();
         if let Some(parent_children) = children.get(&parent) {
             if !parent_children.get_untracked().iter().any(|x| *x == child) {
@@ -121,7 +119,6 @@ where
         }
 
         if self.nodes.get_untracked().get(&child).is_some() {
-            println!("returning early with child {:?}", child);
             if self.nodes.get_untracked().get(&parent).is_none() {
                 panic!("child set but parent wasn't");
             }
@@ -299,6 +296,7 @@ where
 pub trait DebugInfo {
     fn set_show_outline(&mut self, show: bool);
     fn show_outline(&self) -> bool;
+    fn name(&self) -> &str;
 }
 
 impl<T> SuperFuckingBasicTreeNode for ConcreteTreeNode<T>
@@ -339,7 +337,7 @@ where
             let x = *x;
             let nodes = x.get_untracked().tree.nodes;
             let id = x.get_untracked().id;
-            label(move || format!("Node with id {:?}", x.get().id))
+            label(move || format!("{} id {:?}", x.get().value.get().name(), x.get().id))
                 .on_event(crate::event::EventListener::PointerEnter, move |_e| {
                     println!("updating id {:?} to outline: true", id);
                     if let Some(node) = nodes.get_untracked().get(&id) {
@@ -358,7 +356,7 @@ where
                     false
                 })
                 .style(|| Style::BASE.background(Color::GREEN))
-                .hover_style(|| Style::BASE.background(Color::RED))
+            // .hover_style(|| Style::BASE.background(Color::RED))
         })
     }
 }
@@ -403,13 +401,11 @@ where
     S: SuperFuckingBasicTreeNode<Item = N> + 'static,
     N: SignalGet<S>,
 {
-    println!("build simple tree");
     let parent = Node::<N, _>::new(tree_node.view_fn());
     let children = move || {
         if tree_node.has_children() {
             Some(Children::new(
                 move || {
-                    // println!("children len {}", children)
                     tree_node.children().get()
                 },
                 tree_node.key_fn(),

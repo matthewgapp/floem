@@ -377,7 +377,6 @@ pub trait View {
 
         match &event {
             Event::PointerDown(event) => {
-                println!("pointer down");
                 if event.button.is_left() {
                     let rect = cx.get_size(self.id()).unwrap_or_default().to_rect();
                     let now_focused = rect.contains(event.pos);
@@ -414,7 +413,6 @@ pub trait View {
                             (*action)(&event);
                         }
                     } else {
-                        println!("setting as hovered");
                         cx.app_state.hovered.insert(id);
                         let style = cx.app_state.get_computed_style(id);
                         if let Some(cursor) = style.cursor {
@@ -1006,6 +1004,10 @@ impl<T: View> View for Box<T> {
         (**self).layout(cx)
     }
 
+    fn compute_layout(&mut self, cx: &mut LayoutCx) -> Option<Rect> {
+        (**self).compute_layout(cx)
+    }
+
     fn event(&mut self, cx: &mut EventCx, id_path: Option<&[Id]>, event: Event) -> bool {
         (**self).event(cx, id_path, event)
     }
@@ -1042,6 +1044,10 @@ impl View for Box<dyn View> {
 
     fn layout(&mut self, cx: &mut LayoutCx) -> Node {
         (**self).layout(cx)
+    }
+
+    fn compute_layout(&mut self, cx: &mut LayoutCx) -> Option<Rect> {
+        (**self).compute_layout(cx)
     }
 
     fn event(&mut self, cx: &mut EventCx, id_path: Option<&[Id]>, event: Event) -> bool {

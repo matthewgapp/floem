@@ -50,17 +50,13 @@ impl TreeNode<MyTreeData, Label, Vec<MyTreeData>> for MyTreeData {
 
     fn key_fn(&self) -> Self::KeyFn {
         Box::new(|x: &MyTreeData| {
-            println!("key function ran");
             let key = x.data.get();
-            println!("key {}", key);
             key
         })
     }
 
     fn view_fn(&self) -> Self::ViewFn {
         Box::new(|x: &MyTreeData| {
-            // panic!("view fn");
-            println!("view function ran");
             let x = *x;
             floem::views::label(move || x.data.get().to_string())
                 .hover_style(|| Style::BASE.background(Color::RED))
@@ -72,7 +68,6 @@ impl TreeNode<MyTreeData, Label, Vec<MyTreeData>> for MyTreeData {
     }
 
     fn children(&self) -> Self::Children {
-        println!("children got");
         self.children
     }
 
@@ -92,7 +87,6 @@ where
     T: 'static,
 {
     use floem::views::tree_builder::{tree_view, Children, Node};
-    println!("build tree");
 
     let parent = Node::new(tree_node.view_fn());
     let children = move || {
@@ -100,7 +94,6 @@ where
             move || tree_node.children().get(),
             tree_node.key_fn(),
             move |x| {
-                println!("inside view function");
                 if tree_node.has_children() {
                     build_tree(x)
                 } else {
@@ -173,10 +166,12 @@ fn app_view_with_tree_node() -> impl View {
     stack(|| {
         (
             build_tree(tree_data_2),
-            label(|| "hi".to_string()).on_click(|e| {
-                println!("singular label clicked");
-                false
-            }),
+            label(|| "hi".to_string())
+                .on_click(|e| {
+                    println!("singular label clicked");
+                    false
+                })
+                .hover_style(|| Style::BASE.background(Color::ROYAL_BLUE)),
         )
     })
 }

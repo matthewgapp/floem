@@ -168,17 +168,11 @@ impl Id {
                 UPDATE_MESSAGES.with(|msgs| {
                     let mut msgs = msgs.borrow_mut();
                     let msgs = msgs.entry(root).or_default();
-                    println!("msg len before {}", msgs.len());
                     msgs.push(UpdateMessage::State {
                         id: *self,
                         state: Box::new(state),
                     });
-                    println!("msgs after {}", msgs.len())
                 });
-                // println!(
-                //     "update message queue len {}",
-                //     UPDATE_MESSAGES.with(|msgs| { msgs.borrow().len() })
-                // )
             } else {
                 DEFERRED_UPDATE_MESSAGES.with(|msgs| {
                     let mut msgs = msgs.borrow_mut();
