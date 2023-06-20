@@ -37,42 +37,6 @@ where
     fn view_fn(&self) -> Self::ViewFn;
 }
 
-// impl<N, T, V, I> TreeNode<T, V, I> for Rc<N>
-// where
-//     N: TreeNode<T, V, I>,
-//     I: IntoIterator + 'static,
-//     V: View + 'static,
-//     T: 'static,
-// {
-//     type Children = N::Children;
-//     type Item = N::Item;
-//     type K = N::K;
-//     type KeyFn = N::KeyFn;
-//     type ViewFn = N::ViewFn;
-
-//     fn children(&self) -> Self::Children {
-//         self.as_ref().children()
-//     }
-
-//     fn has_children(&self) -> bool {
-//         self.as_ref().has_children()
-//     }
-
-//     fn key(&self) -> Self::KeyFn {
-//         self.as_ref().key()
-//     }
-
-//     fn node(&self) -> Self::Item {
-//         self.as_ref().node()
-//     }
-
-//     fn view_fn(&self) -> Self::ViewFn {
-//         self.as_ref().view_fn()
-//     }
-// }
-
-// want a data structure that is a tree of signals
-
 #[derive(Debug)]
 struct ChildNode<T: 'static> {
     scope: Scope,
@@ -178,15 +142,6 @@ where
             })
     }
 
-    fn root_children(&self) -> RwSignal<Vec<Id>> {
-        // we should be gucci to unwrap here
-        *self
-            .children
-            .get_untracked()
-            .get(&self.root)
-            .unwrap_or(&create_rw_signal(self.scope, vec![]))
-    }
-
     fn children_untracked(&self, id: &Id) -> Option<RwSignal<Vec<Id>>> {
         self.children.get_untracked().get(id).copied()
     }
@@ -199,13 +154,6 @@ where
         } else {
             None
         }
-    }
-
-    fn next_child_from_root_untracked(&self, child: &Id) -> Option<Id>
-    where
-        T: Clone + Copy,
-    {
-        self.next_child_untracked(&self.root, child)
     }
 
     pub fn root_tree_node(&self) -> Signal<ConcreteTreeNode<T>>
@@ -272,21 +220,6 @@ impl<T: Debug> Clone for ConcreteTreeNode<T> {
 
 impl<T: Debug> Copy for ConcreteTreeNode<T> {}
 
-// pub struct Hi<T: 'static + Debug> {
-//     signal: Signal<T>,
-//     tree: ReactiveTree<T>,
-// }
-
-// impl<T: Debug> Clone for Hi<T> {
-//     fn clone(&self) -> Self {
-//         *self
-//     }
-// }
-
-// impl<T: Debug> Copy for Hi<T> {}
-
-// impl <T> Copy for ConcreteTreeNode<T>;
-
 pub struct TreeNodeIter<T: Debug + 'static> {
     scope: Scope,
     tree: ReactiveTree<T>,
@@ -315,13 +248,8 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(cur) = self.cur {
-            let next = self.tree.next_child_untracked(&self.parent, &cur);
-            println!("unwrapping tree node {:?}", cur);
-            println!("current tree {:#?}", self.tree.nodes.get_untracked());
             let item = self.tree.tree_node(&cur).unwrap();
-            println!("current item: {:?}", item.get_untracked().id);
-            println!("next item: {:?}", next);
-            self.cur = next;
+            self.cur = self.tree.next_child_untracked(&self.parent, &cur);
             Some(item)
         } else {
             None
@@ -474,7 +402,6 @@ pub fn build_fucking_simple_tree<S, N, K>(tree_node: S) -> TreeView<N, S::View>
 where
     S: SuperFuckingBasicTreeNode<Item = N> + 'static,
     N: SignalGet<S>,
-    // K: Debug + Hash + Eq + 'static,
 {
     println!("build simple tree");
     let parent = Node::<N, _>::new(tree_node.view_fn());
@@ -495,5 +422,4 @@ where
 
     tree_view(tree_node.node(), parent, children)
         .style(|| Style::BASE.flex_direction(FlexDirection::Column))
-    // .hover_style(|| Style::BASE.background(Color::REBECCA_PURPLE))
 }
