@@ -318,35 +318,8 @@ fn remove_index<V: View>(
     children: &mut [Option<(V, ScopeDisposer)>],
     index: usize,
 ) -> Option<()> {
-    let (view, disposer) = std::mem::take(&mut children[index])?;
-    let id = view.id();
-    if let Some(view_state) = app_state.view_states.remove(&id) {
-        let node = view_state.node;
-        let mut nodes = Vec::new();
-        let mut parents = Vec::new();
-        parents.push(node);
-        nodes.push(node);
-        while !parents.is_empty() {
-            let parent = parents.pop().unwrap();
-            if let Ok(children) = app_state.taffy.children(parent) {
-                for child in children {
-                    nodes.push(child);
-                    parents.push(child);
-                }
-            }
-        }
-        for node in nodes {
-            let _ = app_state.taffy.remove(node);
-        }
-    }
-
-    let mut all_ids = id.all_children();
-    all_ids.push(id);
-    for id in all_ids {
-        id.remove_id_path();
-        app_state.view_states.remove(&id);
-    }
-
+    let (mut view, disposer) = std::mem::take(&mut children[index])?;
+    view.cleanup(app_state);
     disposer.dispose();
     Some(())
 }

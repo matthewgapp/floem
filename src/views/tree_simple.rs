@@ -15,33 +15,6 @@ use super::{
 };
 use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData, ops::Deref, rc::Rc};
 
-// a tree is a list of items, each of which is a function that returns a tree
-
-// a tree is a a view made up of indented lists
-
-// the list will take in some data and a function that returns a view
-
-/*
-
-Tree {
-    Leaf {
-        data: T,
-        view_fn: Box<Fn(T) -> V>
-    },
-    Parent {
-        each_fn: Fn() -> I + 'static where I: IntoIterator<Item = T>,
-        key_fn: Fn(T) -> K + 'static where K: Hash + Eq,
-        view_fn: Box<Fn(T) -> Tree>,
-    }
-}
-
- */
-
-// struct Leaf<T, V> {
-//     data: T,
-//     view_fn: Box<Fn(T) -> V>,
-// }
-
 pub struct ListData<T, I, K, IF, KF, CVF>
 where
     T: 'static,
