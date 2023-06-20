@@ -1,17 +1,9 @@
-use std::{hash::Hash, rc::Rc, vec::IntoIter};
-
 use floem::{
     peniko::Color,
-    reactive::{
-        create_rw_signal, create_signal, ReadSignal, RwSignal, Scope, SignalGet,
-        SignalGetUntracked, SignalUpdate,
-    },
+    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked},
     style::{FlexDirection, Style},
     view::View,
-    views::{
-        label, stack, tree_builder::TreeView, tree_simple, Decorators, Label, ListData,
-        NeverIterate, TreeNode, TreeProps,
-    },
+    views::{label, stack, tree_builder::TreeView, Decorators, Label, NeverIterate, TreeNode},
     ViewContext,
 };
 
